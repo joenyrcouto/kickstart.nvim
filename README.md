@@ -1,323 +1,158 @@
-# kickstart.nvim
+---
+quarto_extensoes: []
+quarto_gerais: []
+quarto_ignorar_ativos: false
+quarto_usar_local_fisico: false
+quarto_modo_escrita: false
+quarto_comp_nativa: false
+quarto_id: dec93dfc
+---
+# Quarto.nvim Otimizado – Fluxo de Estudo Rápido (Beta!! Precisa de revisão de funcionamento do autocomandos do Quarto e estabilidade de uso a longo prazo.)
 
-## Introduction
+Plugin para Neovim que integra o **Quarto** de forma otimizada para escrita e execução de código durante os estudos. Utiliza diretório **shadow em RAM** (`/tmp`) para acelerar compilações e previews, com controle fino sobre ativos, extensões e modos de compilação.
 
-A starting point for Neovim that is:
+## ✨ Funcionalidades Principais
 
-* Small
-* Single-file
-* Completely Documented
+- ⚡ **Preview em RAM** – Renderização instantânea sem tocar no disco físico (exceto quando solicitado).
+- 🔁 **Atualização inteligente** – Modo rápido atualiza automaticamente ao sair do modo de inserção; modo compilado apenas sob demanda (`:Quarto -r`).
+- 🧩 **Execução de blocos** – Envia código para REPL (via `vim-slime`) ou copia para clipboard.
+- 📦 **Gerenciamento de ativos** – Sincronização seletiva de pastas `Gerais/` e `Extens/` para o ambiente de compilação.
+- 🗂️ **Templates** – Aplicação ou cópia de templates a partir de `~/Documents/Quarto/temp/`.
+- 🎛️ **Configurações por buffer** – Salvas no frontmatter YAML de cada arquivo (ID persistente, modos, lista de ativos).
+- 🖥️ **Integração com which-key** – Atalhos mnemônicos (`<leader>q` + ...) para todas as ações.
 
-**NOT** a Neovim distribution, but instead a starting point for your configuration.
+---
 
-## Installation
-
-### Install Neovim
-
-Kickstart.nvim targets *only* the latest
-['stable'](https://github.com/neovim/neovim/releases/tag/stable) and latest
-['nightly'](https://github.com/neovim/neovim/releases/tag/nightly) of Neovim.
-If you are experiencing issues, please make sure you have at least the latest
-stable version. Most likely, you want to install neovim via a [package
-manager](https://github.com/neovim/neovim/blob/master/INSTALL.md#install-from-package).
-To check your neovim version, run `nvim --version` and make sure it is not
-below the latest
-['stable'](https://github.com/neovim/neovim/releases/tag/stable) version. If
-your chosen install method only gives you an outdated version of neovim, find
-alternative [installation methods below](#alternative-neovim-installation-methods).
-
-### Install External Dependencies
-
-External Requirements:
-- Basic utils: `git`, `make`, `unzip`, C Compiler (`gcc`)
-- [ripgrep](https://github.com/BurntSushi/ripgrep#installation),
-  [fd-find](https://github.com/sharkdp/fd#installation)
-- [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter/blob/master/crates/cli/README.md#installation)
-- Clipboard tool (xclip/xsel/win32yank or other depending on the platform)
-- A [Nerd Font](https://www.nerdfonts.com/): optional, provides various icons
-  - if you have it set `vim.g.have_nerd_font` in `init.lua` to true
-- Emoji fonts (Ubuntu only, and only if you want emoji!) `sudo apt install fonts-noto-color-emoji`
-- Language Setup:
-  - If you want to write Typescript, you need `npm`
-  - If you want to write Golang, you will need `go`
-  - etc.
-
-> [!NOTE]
-> See [Install Recipes](#Install-Recipes) for additional Windows and Linux specific notes
-> and quick install snippets
-
-### Install Kickstart
-
-> [!NOTE]
-> [Backup](#FAQ) your previous configuration (if any exists)
-
-Neovim's configurations are located under the following paths, depending on your OS:
-
-| OS | PATH |
-| :- | :--- |
-| Linux, MacOS | `$XDG_CONFIG_HOME/nvim`, `~/.config/nvim` |
-| Windows (cmd)| `%localappdata%\nvim\` |
-| Windows (powershell)| `$env:LOCALAPPDATA\nvim\` |
-
-#### Recommended Step
-
-[Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) this repo
-so that you have your own copy that you can modify, then install by cloning the
-fork to your machine using one of the commands below, depending on your OS.
-
-> [!NOTE]
-> Your fork's URL will be something like this:
-> `https://github.com/<your_github_username>/kickstart.nvim.git`
-
-You likely want to remove `lazy-lock.json` from your fork's `.gitignore` file
-too - it's ignored in the kickstart repo to make maintenance easier, but it's
-[recommended to track it in version control](https://lazy.folke.io/usage/lockfile).
-
-#### Clone kickstart.nvim
-
-> [!NOTE]
-> If following the recommended step above (i.e., forking the repo), replace
-> `nvim-lua` with `<your_github_username>` in the commands below
-
-<details><summary> Linux and Mac </summary>
-
-```sh
-git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
-```
-
-</details>
-
-<details><summary> Windows </summary>
-
-If you're using `cmd.exe`:
+## 📁 Estrutura de Diretórios Esperada
 
 ```
-git clone https://github.com/nvim-lua/kickstart.nvim.git "%localappdata%\nvim"
+~/Documents/Quarto/
+├── Comp/           # Destino dos renders quando `comp_nativa = false`
+├── Gerais/         # Arquivos/pastas copiados para raiz da compilação
+├── Extens/         # Extensões Quarto (copiadas para _extensions/)
+└── temp/           # Templates (.qmd, .md, etc.)
 ```
 
-If you're using `powershell.exe`
+**Shadow (RAM):** `/tmp/nvim_quarto_shadow/<id>/` – cada buffer recebe um ID único (hash do caminho + timestamp) persistido no YAML.
 
-```
-git clone https://github.com/nvim-lua/kickstart.nvim.git "${env:LOCALAPPDATA}\nvim"
-```
+---
 
-</details>
+## ⌨️ Comandos e Atalhos
 
-### Post Installation
+### Comando principal: `:Quarto [flag] [opções]`
 
-Start Neovim
+| Flag / Exemplo                     | Descrição                                                                                |
+|------------------------------------|------------------------------------------------------------------------------------------|
+| `:Quarto -h`                       | Exibe menu de ajuda (atalho `<leader>qh`)                                                 |
+| `:Quarto -p [html\|pdf]`           | Preview **rápido** (código não executado). Atualiza ao sair do Insert.                    |
+| `:Quarto -p -c [html\|pdf]`        | Preview **compilado** (executa blocos). Atualiza somente com `:Quarto -r`.                |
+| `:Quarto -p -s ...`                | Força salvamento do resultado mesmo em caso de erro (experimental).                       |
+| `:Quarto -r`                       | Atualiza manualmente o preview ativo.                                                     |
+| `:Quarto -k`                       | Para o servidor de preview.                                                               |
+| `:Quarto -c [pdf\|html]`           | Renderização final. Salva conforme configuração de `comp_nativa`.                         |
+| `:Quarto -c -s ...`                | Força salvamento mesmo com erro de compilação.                                            |
+| `:Quarto -b`                       | Lista blocos de código; seleciona um para enviar ao REPL ou copiar.                       |
+| `:Quarto -l`                       | Abre visualização de logs (preview ou render).                                            |
+| `:Quarto -m`                       | Menu de configurações (modos, ativos, extensões, templates).                              |
 
-```sh
-nvim
-```
+### Atalhos via `which-key` (prefixo `<leader>q`)
 
-That's it! Lazy will install all the plugins you have. Use `:Lazy` to view
-the current plugin status. Hit `q` to close the window.
+| Atalho      | Ação                                         |
+|-------------|----------------------------------------------|
+| `<leader>qh`| Ajuda (`:Quarto -h`)                         |
+| `<leader>qpf`| Preview rápido HTML                          |
+| `<leader>qpc`| Preview compilado PDF                        |
+| `<leader>qph`| Preview compilado HTML                       |
+| `<leader>qr`| Atualizar preview                            |
+| `<leader>qk`| Parar preview                                |
+| `<leader>qcp`| Renderizar PDF                               |
+| `<leader>qch`| Renderizar HTML                              |
+| `<leader>qb`| Executar bloco de código                     |
+| `<leader>qm`| Abrir configurações                          |
+| `<leader>ql`| Ver logs                                     |
 
-#### Read The Friendly Documentation
+---
 
-Read through the `init.lua` file in your configuration folder for more
-information about extending and exploring Neovim. That also includes
-examples of adding popularly requested plugins.
+## 🧠 Mecanismo de Shadow e Configuração YAML
 
-> [!NOTE]
-> For more information about a particular plugin check its repository's documentation.
+- Cada buffer `.qmd`/.`md` recebe um **ID único** (`quarto_id`) gerado na primeira operação de preview/render e salvo no frontmatter YAML.
+- O diretório shadow é `/tmp/nvim_quarto_shadow/<id>/`. Nele são mantidos:
+  - Cópia atualizada do conteúdo do buffer (sincronizada a cada `InsertLeave` e `BufWritePost`).
+  - Ativos copiados conforme configuração (gerais e extensões).
+- A **renderização** (`:Quarto -c`) pode ocorrer:
+  - No **shadow** (padrão) – mais rápida, ideal para testes.
+  - No **diretório físico original** se `quarto_usar_local_fisico = true` (útil para builds finais com estrutura estável).
+- Após renderização bem‑sucedida, o arquivo de saída é copiado para:
+  - `~/Documents/Quarto/Comp/<id>/` se `comp_nativa = false`
+  - Pasta original do arquivo se `comp_nativa = true`
 
+---
 
-### Getting Started
+## ⚙️ Menu de Configurações (`:Quarto -m`)
 
-[The Only Video You Need to Get Started with Neovim](https://youtu.be/m8C0Cq9Uv9o)
+| Opção | Descrição                                                                 |
+|-------|----------------------------------------------------------------------------|
+| **1. Compilação Nativa** | Se `true`, salva resultado da renderização na pasta original do arquivo.  |
+| **2. Modo Escrita**      | (Reservado para uso futuro – atualmente não afeta comportamento).         |
+| **3. Usar Local Físico** | Se `true`, renderização (`-c`) ocorre no diretório do arquivo (sem shadow).|
+| **4. Ignorar Ativos**    | Se `true`, não copia gerais nem extensões durante compilação.              |
+| **5. Ativos Gerais**     | Seleciona quais itens de `~/Documents/Quarto/Gerais/` serão copiados.      |
+| **6. Extensões**         | Seleciona quais extensões (pastas em `~/Documents/Quarto/Extens/`) serão copiadas para `_extensions/`. |
+| **7. Templates**         | Lista arquivos de `~/Documents/Quarto/temp/` para **Usar** (substitui buffer) ou **Copiar** (clipboard). |
 
-### FAQ
+> Todas as alterações são salvas imediatamente no YAML do buffer.
 
-* What should I do if I already have a pre-existing Neovim configuration?
-  * You should back it up and then delete all associated files.
-  * This includes your existing init.lua and the Neovim files in `~/.local`
-    which can be deleted with `rm -rf ~/.local/share/nvim/`
-* Can I keep my existing configuration in parallel to kickstart?
-  * Yes! You can use [NVIM_APPNAME](https://neovim.io/doc/user/starting.html#%24NVIM_APPNAME)`=nvim-NAME`
-    to maintain multiple configurations. For example, you can install the kickstart
-    configuration in `~/.config/nvim-kickstart` and create an alias:
-    ```
-    alias nvim-kickstart='NVIM_APPNAME="nvim-kickstart" nvim'
-    ```
-    When you run Neovim using `nvim-kickstart` alias it will use the alternative
-    config directory and the matching local directory
-    `~/.local/share/nvim-kickstart`. You can apply this approach to any Neovim
-    distribution that you would like to try out.
-* What if I want to "uninstall" this configuration:
-  * See [lazy.nvim uninstall](https://lazy.folke.io/usage#-uninstalling) information
-* Why is the kickstart `init.lua` a single file? Wouldn't it make sense to split it into multiple files?
-  * The main purpose of kickstart is to serve as a teaching tool and a reference
-    configuration that someone can easily use to `git clone` as a basis for their own.
-    As you progress in learning Neovim and Lua, you might consider splitting `init.lua`
-    into smaller parts. A fork of kickstart that does this while maintaining the
-    same functionality is available here:
-    * [kickstart-modular.nvim](https://github.com/dam9000/kickstart-modular.nvim)
-  * Discussions on this topic can be found here:
-    * [Restructure the configuration](https://github.com/nvim-lua/kickstart.nvim/issues/218)
-    * [Reorganize init.lua into a multi-file setup](https://github.com/nvim-lua/kickstart.nvim/pull/473)
+---
 
-### Install Recipes
+## ✅ Checklist de Funcionalidades (para validação)
 
-Below you can find OS specific install instructions for Neovim and dependencies.
+Marque conforme testar:
 
-After installing all the dependencies continue with the [Install Kickstart](#install-kickstart) step.
+- [ ] **Shadow em RAM**: Preview e render usam `/tmp`, não disco (exceto se `usar_local_fisico` ativo).
+- [ ] **Atualização automática (modo rápido)**: Ao sair do Insert, preview HTML é atualizado sem intervenção.
+- [ ] **Preview compilado**: Com `-c`, executa código e só atualiza com `:Quarto -r`.
+- [ ] **Comando `:Quarto -r`**: Força atualização do preview ativo.
+- [ ] **Parada do servidor**: `:Quarto -k` mata o processo do Quarto.
+- [ ] **Renderização final (`-c`)**: Gera PDF/HTML e abre automaticamente.
+- [ ] **Forçar salvamento (`-s`)**: Mesmo com erro, o arquivo de saída é mantido/copiado.
+- [ ] **Execução de blocos (`-b`)**: Lista blocos, envia código selecionado para o REPL (slime) ou clipboard.
+- [ ] **Visualização de logs (`-l`)**: Abre split com log de preview ou render.
+- [ ] **Configurações (`-m`)**: Menu interativo altera toggles e ativos; mudanças persistem no YAML.
+- [ ] **Persistência do ID**: `quarto_id` no YAML mantém a mesma pasta shadow entre sessões.
+- [ ] **Sincronização de Gerais**: Pastas/arquivos selecionados são copiados para raiz da compilação.
+- [ ] **Sincronização de Extensões**: Pastas selecionadas são copiadas para `_extensions/`.
+- [ ] **Templates**: Substituir buffer ou copiar conteúdo de template.
+- [ ] **Atalhos which-key**: Todos os mapeamentos `<leader>q...` funcionam.
+- [ ] **Ignorar ativos**: Com toggle ativo, nenhum ativo extra é copiado.
 
-#### Windows Installation
+---
 
-<details><summary>Windows with Microsoft C++ Build Tools and CMake</summary>
-Installation may require installing build tools and updating the run command for `telescope-fzf-native`
+## 🔧 Dependências Recomendadas
 
-See `telescope-fzf-native` documentation for [more details](https://github.com/nvim-telescope/telescope-fzf-native.nvim#installation)
+- [Quarto CLI](https://quarto.org/docs/get-started/)
+- [vim-slime](https://github.com/jpalardy/vim-slime) (para `:Quarto -b`)
+- [which-key.nvim](https://github.com/folke/which-key.nvim) (para atalhos)
+- [otter.nvim](https://github.com/jmbuhr/otter.nvim) (já incluso como dependência do quarto-nvim)
 
-This requires:
+---
 
-- Install CMake and the Microsoft C++ Build Tools on Windows
+## 🚀 Instalação
 
-```lua
-{'nvim-telescope/telescope-fzf-native.nvim', build = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
-```
-</details>
-<details><summary>Windows with gcc/make using chocolatey</summary>
-Alternatively, one can install gcc and make which don't require changing the config,
-the easiest way is to use choco:
+Antes vale mencionar que o setup foi feito para sistema de referencimamento Linux, onde os discos são montado em árvores e temos o diretório '/tmp' que é um tmpf (adeque a configuração para funcionar no seu sistema operacional).
 
-1. install [chocolatey](https://chocolatey.org/install)
-either follow the instructions on the page or use winget,
-run in cmd as **admin**:
-```
-winget install --accept-source-agreements chocolatey.chocolatey
-```
+Faça um fork do repositório e clone no seu `~/.config/nvim/`.  Ou simplesmente clone direto.
 
-2. install all requirements using choco, exit the previous cmd and
-open a new one so that choco path is set, and run in cmd as **admin**:
-```
-choco install -y neovim git ripgrep wget fd unzip gzip mingw make tree-sitter
-```
-</details>
-<details><summary>WSL (Windows Subsystem for Linux)</summary>
+Certifique-se de que os diretórios `~/Documents/Quarto/{Comp,Gerais,Extens,temp}` existam (ou serão criados automaticamente).
 
-```
-wsl --install
-wsl
-sudo add-apt-repository ppa:neovim-ppa/unstable -y
-sudo apt update
-sudo apt install make gcc ripgrep fd-find tree-sitter-cli unzip git xclip neovim
-```
-</details>
+---
 
-#### Linux Install
-<details><summary>Ubuntu Install Steps</summary>
+Links principais do github que me auxiliou na construção do dotfile:
+- [Neovim](https://github.com/neovim) (onde configurei o neovim limpo do zero e implementei lsp)
+- [Aman9das/quarto-nvim-dotfiles](https://github.com/Aman9das/quarto-nvim-dotfiles) (exportei e atualizei algumas funções para a nova sintaxe do neovim)
+- [quarto-dev/quarto-nvim](https://github.com/quarto-dev/quarto-nvim) (importante para entender funcionamento do Quarto, depedências etc)
+- [jmbuhr/otter.nvim](https://github.com/jmbuhr/otter.nvim) (parte responsável por modular o lsp junto com o autocomplete, de escolha, nos blocos)
+- Além de outras pequisas...
 
-```
-sudo add-apt-repository ppa:neovim-ppa/unstable -y
-sudo apt update
-sudo apt install make gcc ripgrep fd-find tree-sitter-cli unzip git xclip neovim
-```
-</details>
-<details><summary>Debian Install Steps</summary>
+---
 
-```
-sudo apt update
-sudo apt install make gcc ripgrep fd-find tree-sitter-cli unzip git xclip curl
-
-# Now we install nvim
-curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
-sudo rm -rf /opt/nvim-linux-x86_64
-sudo mkdir -p /opt/nvim-linux-x86_64
-sudo chmod a+rX /opt/nvim-linux-x86_64
-sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz
-
-# make it available in /usr/local/bin, distro installs to /usr/bin
-sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/
-```
-</details>
-<details><summary>Fedora Install Steps</summary>
-
-```
-sudo dnf install -y gcc make git ripgrep fd-find tree-sitter-cli unzip neovim
-```
-</details>
-
-<details><summary>Arch Install Steps</summary>
-
-```
-sudo pacman -S --noconfirm --needed gcc make git ripgrep fd tree-sitter-cli unzip neovim
-```
-</details>
-
-### Alternative neovim installation methods
-
-For some systems it is not unexpected that the [package manager installation
-method](https://github.com/neovim/neovim/blob/master/INSTALL.md#install-from-package)
-recommended by neovim is significantly behind. If that is the case for you,
-pick one of the following methods that are known to deliver fresh neovim versions very quickly.
-They have been picked for their popularity and because they make installing and updating
-neovim to the latest versions easy. You can also find more detail about the
-available methods being discussed
-[here](https://github.com/nvim-lua/kickstart.nvim/issues/1583).
-
-
-<details><summary>Bob</summary>
-
-[Bob](https://github.com/MordechaiHadad/bob) is a Neovim version manager for
-all platforms. Simply install
-[rustup](https://rust-lang.github.io/rustup/installation/other.html),
-and run the following commands:
-
-```bash
-rustup default stable
-rustup update stable
-cargo install bob-nvim
-bob use stable
-```
-
-</details>
-
-<details><summary>Homebrew</summary>
-
-[Homebrew](https://brew.sh) is a package manager popular on Mac and Linux.
-Simply install using [`brew install`](https://formulae.brew.sh/formula/neovim).
-
-</details>
-
-<details><summary>Flatpak</summary>
-
-Flatpak is a package manager for applications that allows developers to package their applications
-just once to make it available on all Linux systems. Simply [install flatpak](https://flatpak.org/setup/)
-and setup [flathub](https://flathub.org/setup) to [install neovim](https://flathub.org/apps/io.neovim.nvim).
-
-</details>
-
-<details><summary>asdf and mise-en-place</summary>
-
-[asdf](https://asdf-vm.com/) and [mise](https://mise.jdx.dev/) are tool version managers,
-mostly aimed towards project-specific tool versioning. However both support managing tools
-globally in the user-space as well:
-
-<details><summary>mise</summary>
-
-[Install mise](https://mise.jdx.dev/getting-started.html), then run:
-
-```bash
-mise plugins install neovim
-mise use neovim@stable
-```
-
-</details>
-
-<details><summary>asdf</summary>
-
-[Install asdf](https://asdf-vm.com/guide/getting-started.html), then run:
-
-```bash
-asdf plugin add neovim
-asdf install neovim stable
-asdf set neovim stable --home
-asdf reshim neovim
-```
-
-</details>
-
-</details>
+**Divirta-se estudando com velocidade!** 🚀
