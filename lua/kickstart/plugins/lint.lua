@@ -8,7 +8,7 @@ return {
   config = function()
     local lint = require 'lint'
     lint.linters_by_ft = {
-      markdown = { 'markdownlint' }, -- Make sure to install `markdownlint` via mason / npm
+      -- markdown = { 'markdownlint' }, -- Make sure to install `markdownlint` via mason / npm
 
       -- Para arquivos Julia puros
       julia = { 'staticlint' }, -- Requer o LanguageServer.jl ou StaticLint.jl

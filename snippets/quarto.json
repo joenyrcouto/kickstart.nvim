@@ -1,4 +1,44 @@
 {
+  {
+  "juliacode": {
+    "prefix": ["jco", "julia"],
+    "body": [
+      "```{julia}",
+      "$1",
+      "```",
+      "$0"
+    ],
+    "description": "Bloco de código Julia para Quarto"
+  },
+  "juliacode_eval_false": {
+    "prefix": ["jcof", "juliaf"],
+    "body": [
+      "```{julia}",
+      "#| eval: false",
+      "$1",
+      "```",
+      "$0"
+    ],
+    "description": "Bloco de código Julia (não executado)"
+  },
+  "juliacode_echo_false": {
+    "prefix": ["jcoe", "juliae"],
+    "body": [
+      "```{julia}",
+      "#| echo: false",
+      "$1",
+      "```",
+      "$0"
+    ],
+    "description": "Bloco de código Julia (código oculto)"
+  },
+  "juliainline": {
+    "prefix": ["ji", "jinline"],
+    "body": [
+      "`julia $1`$0"
+    ],
+    "description": "Código Julia inline no Quarto"
+  }
   "ipython_interactive": {
     "prefix": ["ipyinteractive"],
     "body": [

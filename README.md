@@ -1,38 +1,3 @@
-# Quarto.nvim Otimizado – Fluxo de Estudo Rápido (Beta!!)
-
-Plugin para Neovim que integra o **Quarto**
-de forma otimizada para escrita e execução
-de código durante os estudos. Utiliza
-diretório **shadow em RAM** (`/tmp`) para
-acelerar compilações e previews, com
-controle fino sobre ativos, extensões e
-modos de compilação.
-
-> **Nota:** Este plugin está em fase beta. Os autocomandos de sincronização com o Quarto e a estabilidade a longo prazo ainda precisam de mais testes e validação.
-
-## ✨ Funcionalidades Principais
-
-- ⚡ **Preview em RAM** – Renderização instantânea sem tocar no disco físico (exceto quando solicitado).
-- 🔁 **Atualização inteligente** – Modo rápido atualiza automaticamente ao sair do modo de inserção; modo compilado apenas sob demanda (`:Quarto -r`).
-- 🧩 **Execução de blocos** – Envia código para REPL (via `vim-slime`) ou copia para clipboard, com escolha interativa quando ambos estão disponíveis.
-- 📦 **Gerenciamento de ativos** – Sincronização seletiva de pastas `Gerais/` e `Extens/` para o ambiente de compilação.
-- 🗂️ **Templates** – Aplicação ou cópia de templates a partir de `~/Documents/Quarto/temp/`.
-- 🎛️ **Configurações por buffer** – Salvas no frontmatter YAML de cada arquivo (ID persistente, modos, lista de ativos).
-- 🖥️ **Integração com which-key** – Atalhos mnemônicos (`<leader>q` + ...) para todas as ações.
-- ⌨️ **Shift+Enter inteligente** – Executa a célula atual em arquivos Quarto/Julia/Python/R; em outros tipos, exibe uma notificação amigável.
-- 🧹 **LSP otimizado** – Servidores como `julials` só iniciam em arquivos relevantes (`.qmd`, `.jl`, `.md`), economizando recursos.
-
----
-
-## 📁 Estrutura de Diretórios Esperada
-
-```
-~/Documents/Quarto/
-├── Comp/           # Destino dos renders quando `comp_nativa = false`
-├── Gerais/         # Arquivos/pastas copiados para raiz da compilação
-├── Extens/         # Extensões Quarto (copiadas para _extensions/)
-└── temp/           # Templates (.qmd, .md, etc.)
-```
 
 **Shadow (RAM):** `/tmp/nvim_quarto_shadow/<id>/` – cada buffer recebe um ID único (hash do caminho + timestamp) persistido no YAML.
 
@@ -44,7 +9,7 @@ modos de compilação.
 
 | Flag / Exemplo                     | Descrição                                                                                |
 |------------------------------------|------------------------------------------------------------------------------------------|
-| `:Quarto -h`                       | Exibe menu de ajuda (atalho `<leader>qh`)                                                 |
+| `:Quarto -h`                       | Exibe menu de ajuda (atalho `<leader>th`)                                                 |
 | `:Quarto -p [html\|pdf]`           | Preview **rápido** (código não executado). Atualiza ao sair do Insert.                    |
 | `:Quarto -p -c [html\|pdf]`        | Preview **compilado** (executa blocos). Atualiza somente com `:Quarto -r`.                |
 | `:Quarto -p -s ...`                | Força salvamento do resultado mesmo em caso de erro (experimental).                       |
@@ -56,25 +21,29 @@ modos de compilação.
 | `:Quarto -l`                       | Abre visualização de logs (preview ou render).                                            |
 | `:Quarto -m`                       | Menu de configurações (modos, ativos, extensões, templates).                              |
 
-### Atalhos via `which-key` (prefixo `<leader>q` e `<leader>r`)
+### Atalhos do Plugin Otimizado (prefixo `<leader>t`)
 
 | Atalho        | Ação                                                    |
 |---------------|---------------------------------------------------------|
-| **Quarto (`<leader>q`)** |                                                         |
-| `<leader>qh`  | Ajuda (`:Quarto -h`)                                    |
-| `<leader>qp`  | Menu de Preview                                         |
-| `<leader>qpf` | Preview rápido HTML                                     |
-| `<leader>qpc` | Preview compilado PDF                                   |
-| `<leader>qph` | Preview compilado HTML                                  |
-| `<leader>qr`  | Atualizar preview                                       |
-| `<leader>qk`  | Parar preview                                           |
-| `<leader>qc`  | Menu de Renderização                                    |
-| `<leader>qcp` | Renderizar PDF                                          |
-| `<leader>qch` | Renderizar HTML                                         |
-| `<leader>qb`  | Executar bloco de código (menu interativo)              |
-| `<leader>qm`  | Abrir configurações                                     |
-| `<leader>ql`  | Ver logs                                                |
-| **Runner (`<leader>r`)** |                                                         |
+| **Quarto Otimizado (`<leader>t`)** |                                                         |
+| `<leader>th`  | Ajuda (`:Quarto -h`)                                    |
+| `<leader>tp`  | Menu de Preview                                         |
+| `<leader>tpf` | Preview rápido HTML                                     |
+| `<leader>tpc` | Preview compilado PDF                                   |
+| `<leader>tph` | Preview compilado HTML                                  |
+| `<leader>tr`  | Atualizar preview                                       |
+| `<leader>tk`  | Parar preview                                           |
+| `<leader>tc`  | Menu de Renderização                                    |
+| `<leader>tcp` | Renderizar PDF                                          |
+| `<leader>tch` | Renderizar HTML                                         |
+| `<leader>tb`  | Executar bloco de código (menu interativo)              |
+| `<leader>tm`  | Abrir configurações                                     |
+| `<leader>tl`  | Ver logs                                                |
+
+### Atalhos do Runner de Células (prefixo `<leader>r`)
+
+| Atalho        | Ação                                                    |
+|---------------|---------------------------------------------------------|
 | `<leader>rc`  | Executar célula atual                                   |
 | `<leader>ra`  | Executar célula atual e acima                           |
 | `<leader>rA`  | Executar todas as células (mesma linguagem)             |
@@ -87,6 +56,125 @@ modos de compilação.
 | Atalho        | Ação                                                                                      |
 |---------------|-------------------------------------------------------------------------------------------|
 | `Shift+Enter` | Em arquivos Quarto/Julia/Python/R/bash: executa a célula atual. Caso contrário, exibe uma mensagem informativa. |
+
+---
+
+## 🗺️ Atalhos Personalizados do `config.keymap.lua`
+
+Estes atalhos foram herdados de uma configuração prévia e complementam o fluxo Quarto/R/Python. Eles usam principalmente `<leader>q`, `<leader>o`, `<leader>c` e combinações com `Ctrl/Alt`.
+
+### Quarto Nativo (`<leader>q`)
+
+| Atalho        | Ação                                                     |
+|---------------|----------------------------------------------------------|
+| `<leader>qp`  | Iniciar preview do Quarto                                |
+| `<leader>qu`  | Atualizar preview                                        |
+| `<leader>qq`  | Fechar preview silenciosamente                           |
+| `<leader>qa`  | Ativar Quarto no buffer atual                            |
+| `<leader>qe`  | Exportar blocos de código (otter)                        |
+| `<leader>qE`  | Exportar sobrescrevendo arquivos existentes              |
+| `<leader>qh`  | Ajuda do Quarto                                          |
+| `<leader>qrr` | Executar células acima do cursor                         |
+| `<leader>qrb` | Executar células abaixo do cursor                        |
+| `<leader>qra` | Executar todas as células                                |
+
+### Inserção de Blocos de Código (`<leader>o` e modificadores)
+
+| Atalho        | Ação                                          |
+|---------------|-----------------------------------------------|
+| `<leader>or`  | Inserir bloco R (` ```{r} `)                  |
+| `<leader>op`  | Inserir bloco Python (` ```{python} `)        |
+| `<leader>oj`  | Inserir bloco Julia (` ```{julia} `)          |
+| `<leader>ob`  | Inserir bloco Bash (` ```{bash} `)            |
+| `<leader>ol`  | Inserir bloco Lua (` ```{lua} `)              |
+| `<leader>oo`  | Inserir bloco Observable JS (` ```{ojs} `)    |
+| `<leader>Or`  | Inserir bloco R sem chaves (` ```r `)         |
+| `<leader>Op`  | Inserir bloco Python sem chaves (` ```python `)|
+| `...`         | (demais linguagens com `O` maiúsculo)          |
+| `<M-i>`       | (modo normal/inserção) Inserir bloco R        |
+| `<M-I>`       | (modo normal/inserção) Inserir bloco Python   |
+
+### Execução de Código
+
+| Atalho               | Modo         | Ação                                                            |
+|----------------------|--------------|-----------------------------------------------------------------|
+| `<C-CR>` / `<S-CR>`  | Normal/Inserção | Enviar célula atual para o REPL (via slime ou Molten)          |
+| `<CR>`               | Visual       | Enviar seleção visual para o REPL                               |
+| `<leader><CR>`       | Normal       | Idem ao `<C-CR>`                                                |
+| `<leader>rt`         | Normal       | Mostrar tabela R sob o cursor no navegador (requer DT)          |
+
+### Terminais e REPLs (`<leader>c`)
+
+| Atalho        | Ação                                       |
+|---------------|--------------------------------------------|
+| `<leader>cr`  | Abrir terminal vertical com R              |
+| `<leader>cp`  | Abrir terminal vertical com Python         |
+| `<leader>cj`  | Abrir terminal vertical com Julia          |
+| `<leader>ci`  | Abrir terminal vertical com IPython        |
+| `<leader>cn`  | Abrir terminal vertical com shell padrão   |
+
+### Navegação e Janelas
+
+| Atalho                          | Modo   | Ação                                               |
+|---------------------------------|--------|----------------------------------------------------|
+| `<C-h>`, `<C-j>`, `<C-k>`, `<C-l>` | Normal | Mover foco entre janelas                           |
+| `<S-Up>`, `<S-Down>`, `<S-Left>`, `<S-Right>` | Normal | Redimensionar janela atual (±2 linhas/colunas)    |
+| `H` / `L`                       | Normal | Alternar para aba anterior / próxima               |
+| `n`                             | Normal | Próxima busca **+ centralizar**                    |
+| `gN`                            | Normal | Busca anterior **+ centralizar**                   |
+
+### Edição e Salvamento
+
+| Atalho        | Modo         | Ação                                                    |
+|---------------|--------------|---------------------------------------------------------|
+| `<C-s>`       | Normal/Inserção | Salvar arquivo (`:update`)                            |
+| `gV`          | Normal       | Selecionar último texto colado                          |
+| `>` / `<`     | Visual       | Indentar / remover indentação (mantém seleção)          |
+| `<leader>d`   | Visual       | Deletar sem sobrescrever registro                       |
+| `<leader>p`   | Visual       | Substituir sem sobrescrever registro                    |
+
+### LSP e Ferramentas
+
+| Atalho        | Ação                                                     |
+|---------------|----------------------------------------------------------|
+| `<leader>ldd` | Desabilitar diagnósticos                                 |
+| `<leader>lde` | Habilitar diagnósticos                                   |
+| `<leader>le`  | Exibir erro/diagnóstico sob o cursor em janela flutuante |
+| `<leader>lg`  | Gerar docstring (Neogen)                                 |
+| `<leader>os`  | Listar símbolos do Otter por linguagem                   |
+
+### Git
+
+| Atalho        | Ação                                           |
+|---------------|------------------------------------------------|
+| `<leader>gg`  | Abrir painel do Lazygit                        |
+| `<leader>gs`  | Abrir painel do Gitsigns                       |
+| `<leader>gb`  | Git Blame (toggle, copy URL, open URL)         |
+| `<leader>gc`  | Atualizar conflitos (GitConflict)              |
+
+### Busca com Telescope (`<leader>f`)
+
+| Atalho         | Ação                                    |
+|----------------|-----------------------------------------|
+| `<leader>ff`   | Localizar arquivos                      |
+| `<leader>fg`   | Busca por texto (live grep)             |
+| `<leader>fb`   | Busca difusa no buffer atual            |
+| `<leader>fh`   | Tags de ajuda                           |
+| `<leader>fk`   | Lista de keymaps                        |
+| `<leader>fd`   | Lista de buffers abertos                |
+| `<leader>fM`   | Páginas de manual                       |
+
+### Outros Úteis
+
+| Atalho        | Ação                                                     |
+|---------------|----------------------------------------------------------|
+| `<leader>vt`  | Alternar tema claro/escuro                               |
+| `<leader>vs`  | Editar `init.lua` e abrir diretório de configuração      |
+| `<leader>hc`  | Alternar nível de ocultação (conceallevel)               |
+| `<leader>ic`  | Limpar cache de imagens (snacks.nvim)                    |
+| `<leader>xx`  | Salvar e recarregar o arquivo atual (`:source %`)        |
+
+> **Nota:** Muitos desses atalhos aparecem no menu do `which-key` quando você pressiona `<leader>` e aguarda.
 
 ---
 
@@ -139,7 +227,7 @@ Marque conforme testar:
 - [ ] **Sincronização de Gerais**: Pastas/arquivos selecionados são copiados para raiz da compilação.
 - [ ] **Sincronização de Extensões**: Pastas selecionadas são copiadas para `_extensions/`.
 - [ ] **Templates**: Substituir buffer ou copiar conteúdo de template.
-- [ ] **Atalhos which-key**: Todos os mapeamentos `<leader>q...` e `<leader>r...` funcionam.
+- [ ] **Atalhos which-key**: Todos os mapeamentos `<leader>t...` e `<leader>r...` funcionam.
 - [ ] **Ignorar ativos**: Com toggle ativo, nenhum ativo extra é copiado.
 - [ ] **Shift+Enter**: Em arquivos suportados, executa a célula; fora deles, exibe notificação amigável.
 - [ ] **LSP condicional**: `julials` e outros servidores só iniciam nos filetypes configurados.
