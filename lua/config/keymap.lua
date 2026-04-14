@@ -16,6 +16,30 @@ local imap = function(key, effect, desc) vim.keymap.set('i', key, effect, { sile
 
 local cmap = function(key, effect, desc) vim.keymap.set('c', key, effect, { silent = true, noremap = true, desc = desc }) end
 
+-- Reinicia keys sem sair do nvim
+vim.keymap.set('n', '<leader>ks', function()
+  local mod = 'config.keymap'
+  if package.loaded[mod] then package.loaded[mod] = nil end
+  require(mod)
+  local win = 0
+  local x = vim.api.nvim_win_get_position(win)
+  vim.print(x, ' recarregou!')
+end, { desc = 'Recarrega o keymap' })
+
+-- Apagar arquivo (dar um kill nele)
+map('n', '<C-S-K>', function()
+  local file = vim.fn.expand '%:p'
+  vim.ui.select({ 'Sim', 'Não' }, {
+    prompt = 'Excluir ' .. file .. '?',
+  }, function(choice)
+    if choice == 'Sim' then
+      vim.fn.delete(file)
+      vim.cmd 'bd!' -- Fecha o buffer também
+      vim.notify('Arquivo excluído.', vim.log.levels.INFO)
+    end
+  end)
+end, { desc = 'Excluir arquivo atual' })
+
 -- select last paste
 nmap('gV', '`[v`]')
 
@@ -524,11 +548,9 @@ map({ 'n', 't' }, '<A-i>', function() require('nvchad.term').toggle { pos = 'flo
 map('n', '<CR>', function()
   local ok, obsidian = pcall(require, 'obsidian')
   if ok then
-    local client = obsidian.get_client()
-    if client and client:cursor_on_markdown_link() then
-      vim.cmd 'ObsidianFollowLink'
-      return ''
-    end
+    -- Tenta seguir o link; se falhar, usa o comportamento normal do <CR>
+    local success = pcall(vim.cmd, 'ObsidianFollowLink')
+    if success then return '' end
   end
   return '<CR>'
 end, { expr = true, desc = 'Obsidian: Seguir Link' })
@@ -546,8 +568,16 @@ map('n', '<leader>oi', '<cmd>ObsidianPasteImg<CR>', { desc = 'Colar Imagem' })
 map('n', '<leader>ob', '<cmd>ObsidianBacklinks<CR>', { desc = 'Ver Backlinks' })
 
 -- ==========================================
--- INTEGRAÇÃO GIT-BUG (GA COM JANELA FLUTUANTE)
+-- INTEGRAÇÃO GIT-BUG (ATUALIZADA - BRIDGE AUTH)
 -- ==========================================
+
+-- ---------- Funções auxiliares ----------
+
+local function adopt_identity_in_repo(git_root, id)
+  local cmd = string.format('cd %s && git bug user adopt %s', vim.fn.shellescape(git_root), id)
+  local ok = os.execute(cmd .. ' > /dev/null 2>&1')
+  return ok == 0
+end
 
 local function get_working_dir()
   local bufpath = vim.api.nvim_buf_get_name(0)
@@ -558,11 +588,19 @@ local function get_working_dir()
   end
 end
 
+local function get_git_root(cwd)
+  local output = vim.fn.system('cd ' .. vim.fn.shellescape(cwd) .. ' && git rev-parse --show-toplevel 2>/dev/null')
+  if vim.v.shell_error ~= 0 then return nil end
+  return output:gsub('%s+', '')
+end
+
 local function kitty_remote_available() return os.execute 'kitty @ ls > /dev/null 2>&1' end
 
-local function clean_locks() os.execute 'rm -f .git/refs/bugs/lock .git/refs/bugs.lock .git/git-bug.lock 2>/dev/null' end
+local function clean_locks(git_root)
+  os.execute('cd ' .. vim.fn.shellescape(git_root) .. ' && rm -f .git/refs/bugs/lock .git/refs/bugs.lock .git/git-bug.lock 2>/dev/null')
+end
 
-local function kitty_float_exec(cmd, cwd)
+local function kitty_float_exec(cmd, git_root)
   if not kitty_remote_available() then return false end
   local script_path = vim.fn.stdpath 'cache' .. '/kitty_gitbug.sh'
   local script_content = string.format(
@@ -572,7 +610,7 @@ cd %s
 export EDITOR=nvim
 %s
 ]],
-    vim.fn.shellescape(cwd),
+    vim.fn.shellescape(git_root),
     cmd
   )
   local file = io.open(script_path, 'w')
@@ -588,22 +626,369 @@ export EDITOR=nvim
   return os.execute(kitty_cmd) == 0
 end
 
-local function nvim_term_exec(cmd, cwd, interactive, wait_after)
-  clean_locks()
-  local prefix = 'cd ' .. vim.fn.shellescape(cwd) .. ' && clear; '
+local function nvim_term_exec(cmd, git_root, interactive, wait_after)
+  clean_locks(git_root)
+  local prefix = 'cd ' .. vim.fn.shellescape(git_root) .. ' && clear; '
   local suffix = wait_after and "; echo; echo '--- PROCESSO CONCLUÍDO. PRESSIONE ENTER PARA SAIR ---'; read" or '; exit'
   local full_cmd = prefix .. cmd .. suffix
   vim.cmd('split | terminal bash -c ' .. vim.fn.shellescape(full_cmd))
   if interactive then vim.cmd 'startinsert' end
 end
 
+-- ---------- IDENTIDADES ----------
+
+local function get_local_identities(git_root)
+  local output = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git bug user show 2>/dev/null')
+  if vim.v.shell_error ~= 0 then return {}, nil end
+  local identities = {}
+  local active_short = nil
+  for line in output:gmatch '[^\r\n]+' do
+    local short_id, name = line:match '^([%x]+)%s+(.+)$'
+    if short_id and name then table.insert(identities, { short_id = short_id, name = name }) end
+    if not active_short then active_short = short_id end
+  end
+  return identities, active_short
+end
+
+local function create_local_identity(git_root)
+  local cmd = 'cd ' .. vim.fn.shellescape(git_root) .. ' && export EDITOR=nvim; git bug user new'
+  vim.cmd('split | terminal bash -c "' .. cmd .. "; echo; echo '--- PROCESSO CONCLUÍDO. PRESSIONE ENTER PARA SAIR ---'; read\"")
+end
+
+-- Exclui uma identidade local usando o short_id e wildcard (*)
+local function delete_local_identity(git_root, short_id)
+  local id_pattern = vim.fn.shellescape(git_root .. '/.git/refs/identities/' .. short_id) .. '*'
+  -- Correção: apontamento restrito ao arquivo de identidades no cache
+  local cache_filepath = vim.fn.shellescape(git_root .. '/.git/git-bug/cache/identities')
+  local ok = os.execute('rm -rf ' .. id_pattern .. ' 2>/dev/null')
+  os.execute('rm -f ' .. cache_filepath .. ' 2>/dev/null')
+  os.execute('mkdir -p' .. git_root .. '.git/git-bug/cache/')
+  return ok == 0
+end
+
+local function ensure_repo_has_identity(git_root)
+  local locals, _ = get_local_identities(git_root)
+  if #locals > 0 then return true end
+
+  vim.notify('Nenhuma identidade local encontrada. Por favor, crie uma identidade antes de prosseguir.', vim.log.levels.WARN)
+  return false
+end
+
+-- ---------- BRIDGE (USANDO bridge auth) ----------
+local function has_github_bridge(git_root)
+  local output = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bridge auth 2>/dev/null')
+  -- Se a saída contiver "github", significa que já existe uma autenticação para GitHub
+  return output:match 'github' ~= nil
+end
+
+local function auto_configure_bridge(git_root)
+  if has_github_bridge(git_root) then
+    vim.notify('Git Bug: Autenticação GitHub já configurada.', vim.log.levels.INFO)
+    return true
+  end
+
+  local token = vim.fn.system('gh auth token 2>/dev/null'):gsub('%s+', '')
+  if token == '' then
+    vim.notify('Git Bug: Token do gh não encontrado. Execute "gh auth login".', vim.log.levels.WARN)
+    return false
+  end
+
+  local repo_url = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git remote get-url origin 2>/dev/null'):gsub('%s+', '')
+  local owner, project = repo_url:match 'github.com[:/]([^/]+)/([^/]+)%.git$'
+  if not owner then
+    owner, project = repo_url:match 'github.com[:/]([^/]+)/(.+)$'
+  end
+  if not owner or not project then
+    vim.notify('Git Bug: Não foi possível extrair owner/project do remote origin.', vim.log.levels.WARN)
+    return false
+  end
+
+  -- Monta o comando com os parâmetros conhecidos, mas sem --non-interactive para permitir escolha
+  local cmd = string.format(
+    'cd %s && git bug bridge new --name github --target github --owner %s --project %s --token %s',
+    vim.fn.shellescape(git_root),
+    owner,
+    project,
+    token
+  )
+
+  -- Abre um terminal split para que o usuário possa ver o log e fazer escolhas interativas
+  vim.cmd('split | terminal bash -c "' .. cmd .. "; echo; echo '--- PROCESSO CONCLUÍDO. PRESSIONE ENTER PARA SAIR ---'; read\"")
+  vim.cmd 'startinsert'
+
+  -- Nota: não podemos verificar o sucesso imediatamente porque o terminal é assíncrono.
+  -- Mas após o usuário finalizar, a bridge estará configurada.
+  return true
+end
+-- ---------- EXECUTOR ----------
+local function gitbug_exec(cmd, git_root, interactive, wait_after, use_kitty)
+  if not ensure_repo_has_identity(git_root) then return end
+  clean_locks(git_root)
+
+  if cmd:match 'bridge pull' or cmd:match 'bridge push' then
+    if not auto_configure_bridge(git_root) then
+      vim.notify('Sincronização cancelada: autenticação GitHub não configurada.', vim.log.levels.WARN)
+      return
+    end
+  end
+
+  if use_kitty then
+    if not kitty_float_exec(cmd, git_root) then
+      vim.notify('Kitty remote indisponível, abrindo no terminal integrado...', vim.log.levels.WARN)
+      nvim_term_exec(cmd, git_root, interactive, wait_after)
+    end
+  else
+    nvim_term_exec(cmd, git_root, interactive, wait_after)
+  end
+end
+
 -- =============================================================================
--- NOVO GA: Janela flutuante para título e descrição
+-- MENU DE IDENTIDADES (<leader>gu)
 -- =============================================================================
+vim.keymap.set('n', '<leader>gu', function()
+  local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+
+  if not git_root then
+    vim.notify('Você não está em um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+
+  local locals, active_short = get_local_identities(git_root)
+  local items = {}
+
+  if active_short then
+    local active_name = nil
+    for _, ident in ipairs(locals) do
+      if ident.short_id == active_short then
+        active_name = ident.name
+        break
+      end
+    end
+    table.insert(items, {
+      display = string.format('⭐ Ativa: %s (%s…)', active_name or 'desconhecida', active_short),
+      action = 'header',
+    })
+  else
+    table.insert(items, { display = '⚠️ Nenhuma identidade ativa', action = 'header' })
+  end
+  table.insert(items, { display = '---', action = 'separator' })
+
+  table.insert(items, { display = '📂 IDENTIDADES LOCAIS', action = 'header' })
+  for _, ident in ipairs(locals) do
+    local marker = (active_short == ident.short_id) and '✓' or ' '
+    table.insert(items, {
+      display = string.format('  %s %s (%s…)', marker, ident.name, ident.short_id),
+      short_id = ident.short_id,
+      action = 'use_local',
+    })
+  end
+  table.insert(items, { display = '[+] Criar nova identidade local', action = 'create_local' })
+  if #locals > 0 then table.insert(items, { display = '[✕] Excluir uma identidade local...', action = 'delete_local_menu' }) end
+
+  vim.ui.select(items, {
+    prompt = 'Gerenciar identidades Git-Bug',
+    format_item = function(item) return item.display end,
+  }, function(choice)
+    if not choice then return end
+
+    if choice.action == 'create_local' then
+      create_local_identity(git_root)
+    elseif choice.action == 'delete_local_menu' then
+      local del_items = {}
+      for _, ident in ipairs(locals) do
+        table.insert(del_items, {
+          display = string.format('%s (%s…)', ident.name, ident.short_id),
+          short_id = ident.short_id,
+        })
+      end
+      vim.ui.select(del_items, {
+        prompt = 'Escolha a identidade LOCAL para excluir:',
+        format_item = function(item) return item.display end,
+      }, function(del_choice)
+        if not del_choice then return end
+        vim.ui.select({ 'Sim', 'Não' }, {
+          prompt = string.format('Confirmar exclusão LOCAL de %s?', del_choice.display),
+        }, function(confirm)
+          if confirm == 'Sim' then
+            if delete_local_identity(git_root, del_choice.short_id) then
+              if active_short == del_choice.short_id then
+                local remaining = {}
+                for _, ident in ipairs(locals) do
+                  if ident.short_id ~= del_choice.short_id then table.insert(remaining, ident) end
+                end
+                if #remaining > 0 then
+                  adopt_identity_in_repo(git_root, remaining[1].short_id)
+                  vim.notify('Identidade local removida. Nova ativa: ' .. remaining[1].name, vim.log.levels.INFO)
+                else
+                  vim.notify('Identidade local removida. Nenhuma outra local disponível.', vim.log.levels.WARN)
+                end
+              else
+                vim.notify('Identidade local removida.', vim.log.levels.INFO)
+              end
+            else
+              vim.notify('Falha ao remover identidade local.', vim.log.levels.ERROR)
+            end
+          end
+        end)
+      end)
+    elseif choice.action == 'use_local' then
+      vim.ui.select({ 'Sim', 'Não' }, {
+        prompt = string.format 'Tornar esta a identidade ativa?',
+      }, function(confirm)
+        if confirm == 'Sim' then
+          if adopt_identity_in_repo(git_root, choice.short_id) then
+            vim.notify('Identidade ativa alterada com sucesso!', vim.log.levels.INFO)
+          else
+            vim.notify('Falha ao alterar identidade.', vim.log.levels.ERROR)
+          end
+        end
+      end)
+    end
+  end)
+end, { desc = 'Git Bug: Gerenciar identidades' })
+
+-- =============================================================================
+-- DEMAIS ATALHOS
+-- =============================================================================
+
+-- Configurar remote do GitHub e sincronizar (mixed reset)
+vim.keymap.set('n', '<leader>gr', function()
+  local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+
+  if not git_root then
+    vim.ui.select({ 'Sim', 'Não' }, {
+      prompt = 'Você não está em um repositório Git. Deseja inicializar um agora?',
+    }, function(choice)
+      if choice == 'Sim' then
+        local init_cmd = 'cd ' .. vim.fn.shellescape(cwd) .. ' && git init'
+        nvim_term_exec(init_cmd, cwd, false, true)
+        vim.notify('Repositório Git inicializado. Execute <leader>gr novamente.', vim.log.levels.INFO)
+      end
+    end)
+    return
+  end
+
+  if vim.fn.executable 'gh' ~= 1 then
+    vim.notify('GitHub CLI (gh) não está instalado.\nInstale com: sudo pacman -S github-cli (Arch) ou https://cli.github.com', vim.log.levels.ERROR)
+    return
+  end
+
+  local auth_status = vim.fn.system 'gh auth status 2>&1'
+  if auth_status:match 'not logged in' or auth_status:match 'Você não está logado' then
+    vim.ui.select({ 'Sim', 'Não' }, {
+      prompt = 'Você não está autenticado no GitHub CLI. Deseja fazer login agora?',
+    }, function(choice)
+      if choice == 'Sim' then vim.cmd 'split | terminal gh auth login' end
+    end)
+    return
+  end
+
+  local username = vim.fn.system('gh api user --jq .login 2>/dev/null'):gsub('%s+', '')
+  if username == '' then
+    vim.notify('Não foi possível obter seu username do GitHub. Verifique sua autenticação com "gh auth status".', vim.log.levels.ERROR)
+    return
+  end
+
+  local folder_name = vim.fn.fnamemodify(git_root, ':t')
+  local repo_name = vim.fn.input('Nome do repositório no GitHub: ', folder_name)
+  if repo_name == '' then
+    vim.notify('Nome do repositório é obrigatório.', vim.log.levels.WARN)
+    return
+  end
+
+  local existing_remote = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git remote get-url origin 2>/dev/null'):gsub('%s+', '')
+  local remote_url = 'https://github.com/' .. username .. '/' .. repo_name .. '.git'
+
+  local cmd = string.format('cd %s && ', vim.fn.shellescape(git_root))
+  if existing_remote ~= '' then
+    vim.ui.select({ 'Sim, substituir', 'Não, cancelar' }, {
+      prompt = string.format('Remote origin já existe (%s). Deseja substituí-lo por %s?', existing_remote, remote_url),
+    }, function(choice)
+      if choice == 'Sim, substituir' then
+        local update_cmd = cmd .. string.format('git remote set-url origin %s; git fetch origin; git reset --mixed origin/master', remote_url)
+        nvim_term_exec(update_cmd, git_root, false, true)
+        vim.notify('Remote atualizado e sincronizado com origin/master.', vim.log.levels.INFO)
+      end
+    end)
+  else
+    local add_cmd = cmd .. string.format('git remote add origin %s; git fetch origin; git reset --mixed origin/master', remote_url)
+    nvim_term_exec(add_cmd, git_root, false, true)
+    vim.notify('Remote configurado e sincronizado com origin/master.', vim.log.levels.INFO)
+  end
+end, { desc = 'Git: Configurar remote (mixed reset)' })
+
+-- Inicializar repositório (não requer identidade)
+vim.keymap.set('n', '<leader>gi', function()
+  local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+  local cmd = 'cd ' .. vim.fn.shellescape(git_root) .. ' && git init'
+  nvim_term_exec(cmd, git_root, false, true)
+end, { desc = 'Git: Init' })
+
+vim.keymap.set('n', '<leader>gl', function()
+  local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+
+  local locals, active_short = get_local_identities(git_root)
+  if #locals == 0 then
+    vim.notify(
+      '👋 Parece que você ainda não tem um perfil de usuário neste repositório! Crie um em "<leader>gu" para acessar a interface.',
+      vim.log.levels.INFO
+    )
+    return
+  end
+
+  -- Fallback: auto-adota a primeira identidade se o ambiente perdeu a referência
+  if not active_short then adopt_identity_in_repo(git_root, locals[1].short_id) end
+
+  clean_locks(git_root)
+
+  if not kitty_float_exec('git bug termui', git_root) then
+    vim.notify('Kitty remote indisponível, abrindo no terminal integrado...', vim.log.levels.WARN)
+    nvim_term_exec('git bug termui', git_root, true, false)
+  end
+end, { desc = 'Git Bug: Interface TUI' })
+
+vim.keymap.set('n', '<leader>gp', function()
+  local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+
+  -- Validação amigável de perfil também para sincronização
+  local locals, _ = get_local_identities(git_root)
+  if #locals == 0 then
+    vim.notify('👋 Identidade necessária para sincronizar. Crie uma em "<leader>gu".', vim.log.levels.INFO)
+    return
+  end
+
+  -- Sincronização via terminal integrado
+  nvim_term_exec('git bug bridge pull && git bug bridge push', git_root, false, true)
+end, { desc = 'Git Bug: Push/Pull' })
+
 local function create_issue_floating()
   local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+  if not ensure_repo_has_identity(git_root) then return end
 
-  -- Cria um buffer temporário em uma janela flutuante
   local buf = vim.api.nvim_create_buf(false, true)
   local width = math.floor(vim.o.columns * 0.7)
   local height = math.floor(vim.o.lines * 0.6)
@@ -620,7 +1005,6 @@ local function create_issue_floating()
   }
   local win = vim.api.nvim_open_win(buf, true, opts)
 
-  -- Conteúdo inicial: instruções e campos
   local lines = {
     '# Título (obrigatório)',
     '',
@@ -628,12 +1012,9 @@ local function create_issue_floating()
     '',
   }
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-
-  -- Configura o buffer
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].filetype = 'markdown'
 
-  -- Mapeamentos locais
   local function submit()
     local content = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local title = nil
@@ -642,9 +1023,7 @@ local function create_issue_floating()
 
     for _, line in ipairs(content) do
       if line:match '^# Título' then
-        -- próxima linha será o título
       elseif not title and not in_desc and line:match '^%s*$' then
-        -- ignora linhas vazias antes do título
       elseif not title and not in_desc then
         title = line:match '^%s*(.-)%s*$'
       elseif line:match '^# Descrição' then
@@ -660,13 +1039,10 @@ local function create_issue_floating()
     end
 
     local desc = table.concat(desc_lines, '\n')
-
-    -- Fecha a janela
     vim.api.nvim_win_close(win, true)
 
-    -- Executa o git bug em background
     local cmd = string.format('git bug bug new -t %s -m %s', vim.fn.shellescape(title), vim.fn.shellescape(desc))
-    local full_cmd = string.format('cd %s && %s', vim.fn.shellescape(cwd), cmd)
+    local full_cmd = string.format('cd %s && %s', vim.fn.shellescape(git_root), cmd)
 
     vim.notify('Criando issue...', vim.log.levels.INFO)
     vim.fn.jobstart(full_cmd, {
@@ -680,68 +1056,132 @@ local function create_issue_floating()
     })
   end
 
-  vim.keymap.set('n', '<CR>', submit, { buffer = buf, desc = 'Criar issue' })
+  vim.keymap.set('n', '<CR>', submit, { buffer = buf })
   vim.keymap.set('n', '<C-s>', submit, { buffer = buf })
   vim.keymap.set('n', 'q', function() vim.api.nvim_win_close(win, true) end, { buffer = buf })
   vim.keymap.set('i', '<C-s>', submit, { buffer = buf })
-
-  -- Posiciona o cursor na linha do título
   vim.api.nvim_win_set_cursor(win, { 2, 0 })
   vim.cmd 'startinsert'
 end
-
 vim.keymap.set('n', '<leader>ga', create_issue_floating, { desc = 'Git Bug: Nova Issue (flutuante)' })
 
--- =============================================================================
--- DEMAIS ATALHOS (mantidos)
--- =============================================================================
-vim.keymap.set('n', '<leader>gi', function()
+vim.keymap.set('n', '<leader>gk', function()
   local cwd = get_working_dir()
-  nvim_term_exec('git bug init', cwd, false, true)
-end, { desc = 'Git Bug: Init' })
-
-vim.keymap.set('n', '<leader>gu', function()
-  local cwd = get_working_dir()
-  nvim_term_exec('git bug user adopt', cwd, true, true)
-end, { desc = 'Git Bug: Adotar identidade' })
-
-vim.keymap.set('n', '<leader>gl', function()
-  local cwd = get_working_dir()
-  clean_locks()
-  if not kitty_float_exec('git bug termui', cwd) then
-    vim.notify('Kitty remote indisponível, abrindo no terminal integrado...', vim.log.levels.WARN)
-    nvim_term_exec('git bug termui', cwd, true, false)
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
   end
-end, { desc = 'Git Bug: Interface TUI' })
+
+  local output = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bug ls --format id 2>/dev/null')
+  if vim.v.shell_error ~= 0 or output == '' then
+    vim.notify('Nenhuma issue encontrada.', vim.log.levels.WARN)
+    return
+  end
+
+  local ids = {}
+  for line in output:gmatch '[^\r\n]+' do
+    if line:match '^[%x]+$' then table.insert(ids, line) end
+  end
+
+  if #ids == 0 then
+    vim.notify('Nenhuma issue encontrada.', vim.log.levels.WARN)
+    return
+  end
+
+  vim.ui.select(ids, {
+    prompt = 'Escolha o ID da issue para excluir:',
+  }, function(id)
+    if not id then return end
+
+    vim.ui.select({ 'Apenas local', 'Local e remoto (push)', 'Cancelar' }, {
+      prompt = 'Como deseja excluir a issue ' .. id:sub(1, 8) .. '?',
+    }, function(mode)
+      if not mode or mode == 'Cancelar' then return end
+
+      local cmd_rm = string.format('git bug bug rm %s', id)
+      local full_cmd = string.format('cd %s && %s', vim.fn.shellescape(git_root), cmd_rm)
+
+      if mode == 'Apenas local' then
+        local ok = os.execute(full_cmd .. ' > /dev/null 2>&1')
+        if ok == 0 then
+          vim.notify('Issue excluída localmente.', vim.log.levels.INFO)
+        else
+          vim.notify('Erro ao excluir issue.', vim.log.levels.ERROR)
+        end
+      else
+        local push_cmd = string.format('cd %s && %s && git bug bridge push github', vim.fn.shellescape(git_root), cmd_rm)
+        vim.notify('Excluindo issue e sincronizando...', vim.log.levels.INFO)
+        vim.fn.jobstart(push_cmd, {
+          on_exit = function(_, code)
+            if code == 0 then
+              vim.schedule(function() vim.notify('Issue excluída e push realizado.', vim.log.levels.INFO) end)
+            else
+              vim.schedule(function() vim.notify('Erro durante exclusão/push.', vim.log.levels.ERROR) end)
+            end
+          end,
+        })
+      end
+    end)
+  end)
+end, { desc = 'Git Bug: Excluir issue' })
 
 vim.keymap.set('n', '<leader>gp', function()
   local cwd = get_working_dir()
-  nvim_term_exec('git bug pull && git bug push', cwd, false, true)
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+  gitbug_exec('git bug bridge pull github && git bug bridge push github', git_root, false, true, false)
 end, { desc = 'Git Bug: Push/Pull' })
 
 vim.keymap.set('n', '<leader>gf', function()
   local cwd = get_working_dir()
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
+    return
+  end
+  if not ensure_repo_has_identity(git_root) then return end
   local msg = vim.fn.input 'Mensagem do Commit: '
   if msg == '' then return end
   local issue_id = vim.fn.input 'ID do Bug (ex: abc123): '
   if issue_id == '' then return end
   local cmd = string.format('git commit -m "%s (Fixes %s)"', msg, issue_id)
-  nvim_term_exec(cmd, cwd, false, true)
+  gitbug_exec(cmd, git_root, false, true, false)
 end, { desc = 'Git Bug: Commit Fix' })
 
-vim.keymap.set('n', '<leader>gb', function()
+vim.keymap.set('n', '<leader>gz', function()
   local cwd = get_working_dir()
-  local token = vim.fn.system('gh auth token 2>/dev/null'):gsub('%s+', '')
-  if token == '' then
-    vim.notify("Token do gh não encontrado. Faça login com 'gh auth login'.", vim.log.levels.WARN)
+  local git_root = get_git_root(cwd)
+  if not git_root then
+    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
     return
   end
-  local repo = vim.fn.system('cd ' .. vim.fn.shellescape(cwd) .. ' && git remote get-url origin 2>/dev/null'):gsub('%s+', '')
-  local owner_repo = repo:match 'github.com[:/]([^/]+/[^/]+)%.git$' or repo:match 'github.com[:/](.+)$'
-  if not owner_repo then
-    vim.notify('Não foi possível extrair owner/repo.', vim.log.levels.WARN)
-    return
-  end
-  local cmd = string.format('git bug bridge new --name github --type github --url "https://github.com/%s" --token %s', owner_repo, token)
-  nvim_term_exec(cmd, cwd, false, true)
+  auto_configure_bridge(git_root)
 end, { desc = 'Git Bug: Configurar bridge (gh)' })
+
+-- Limpar keyring do git-bug (corrige bridges corrompidas)
+vim.keymap.set('n', '<leader>gy', function()
+  local keyring_dir = vim.fn.expand '~/.config/git-bug/keyring'
+
+  if vim.fn.isdirectory(keyring_dir) ~= 1 then
+    vim.notify('Diretório keyring não encontrado.', vim.log.levels.INFO)
+    return
+  end
+
+  vim.ui.select({ 'Sim', 'Não' }, {
+    prompt = 'Apagar TODAS as chaves do keyring do git-bug? Isso pode resolver bridges corrompidas.',
+  }, function(choice)
+    if choice == 'Sim' then
+      local ok = os.execute('rm -rf ' .. vim.fn.shellescape(keyring_dir) .. '/* 2>/dev/null')
+      if ok == 0 then
+        vim.notify('Keyring do git-bug limpo com sucesso!', vim.log.levels.INFO)
+        vim.notify('Execute <leader>gz para reconfigurar a bridge.', vim.log.levels.INFO)
+      else
+        vim.notify('Falha ao limpar o keyring.', vim.log.levels.ERROR)
+      end
+    end
+  end)
+end, { desc = 'Git Bug: Limpar keyring (corrigir bridge)' })

@@ -69,6 +69,7 @@ return {
     },
   },
 
+  -- 1. Plugin Principal: Gestão do Vault e Notas
   {
     'epwalsh/obsidian.nvim',
     version = '*',
@@ -76,20 +77,35 @@ return {
     dependencies = { 'nvim-lua/plenary.nvim' },
     opts = {
       workspaces = { { name = 'estudos', path = '~/Documents/brain' } },
-      -- ADICIONE ISSO AQUI:
       templates = {
-        subdir = 'content/99-brutos/templates', -- Caminho a partir da raiz do vault
+        subdir = 'content/99-brutos/templates',
         date_format = '%Y-%m-%d',
-        time_format = '%H:%M',
-        substitutions = {},
+        time_format = '%H-%M',
       },
       extensions = { '.md', '.qmd' },
       completion = { nvim_cmp = false, min_chars = 2 },
-      attachments = { folder = 'content/99-brutos' }, -- Ajustei para 'content' para o Quartz não se perder
+      attachments = { folder = 'content/99-brutos' },
       daily_notes = { folder = 'content/00-rápidas', date_format = '%Y-%m-%d' },
       legacy_commands = false,
       ui = { enable = false },
     },
+  },
+
+  -- 2. Plugin Bridge: Sincronização de Navegação (Neovim -> Obsidian)
+  {
+    'oflisback/obsidian-bridge.nvim',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    event = { 'BufReadPre *.md', 'BufNewFile *.md' },
+    opts = {
+      obsidian_server_address = 'http://localhost:27123', -- Verifique se o HTTP (sem SSL) está ativo no Obsidian
+      scroll_sync = false, -- Deixe false a menos que use a versão modificada do REST API
+      warnings = true,
+    },
+    config = function(_, opts)
+      -- Só ativa o bridge se o arquivo atual estiver dentro do seu Vault
+      local path = vim.fn.expand '%:p'
+      if path:find 'Documents/brain' then require('obsidian-bridge').setup(opts) end
+    end,
   },
 
   {
