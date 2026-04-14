@@ -16,6 +16,7 @@ Este documento lista todos os atalhos configurados no `config.keymap.lua` e nos 
 | Atalho        | Modo         | Ação                                          |
 |---------------|--------------|-----------------------------------------------|
 | `<C-s>`       | Normal/Insert| Salvar (`:update`)                            |
+| `<C-S-K>`     | Normal       | Excluir arquivo (`:!rm %`)                    |
 | `gV`          | Normal       | Selecionar último texto colado                |
 | `>` / `<`     | Visual       | Indentar / remover indentação (mantém seleção)|
 | `<leader>d/p` | Visual       | Deletar/substituir sem sobrescrever registro  |
@@ -66,10 +67,8 @@ Este documento lista todos os atalhos configurados no `config.keymap.lua` e nos 
 | `ga`   | Nova issue (janela flutuante)                 |
 | `gl`   | Interface TUI (Kitty float)                   |
 | `gp`   | Sincronizar (push/pull)                       |
-| `gf`   | Commit referenciando issue                    |
-| `gi`   | Init                                          |
-| `gu`   | Adotar identidade                             |
-| `gb`   | Configurar bridge com GitHub                  |
+| `gi`   | Init de bugs tracker                          |
+| `gu`   | Adotar/criar identidade                       |
 
 ## 🤖 IA – CodeCompanion
 

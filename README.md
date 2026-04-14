@@ -74,7 +74,6 @@
 ```
 Documents/
 ├── brain/                     # Vault Obsidian
-│   └── content/
 └── Quarto/
     ├── Extens/                # _extensions
     ├── Gerais/                # Ativos copiados para raiz

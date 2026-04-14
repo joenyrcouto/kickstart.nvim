@@ -655,17 +655,6 @@ local function create_local_identity(git_root)
   vim.cmd('split | terminal bash -c "' .. cmd .. "; echo; echo '--- PROCESSO CONCLUÍDO. PRESSIONE ENTER PARA SAIR ---'; read\"")
 end
 
--- Exclui uma identidade local usando o short_id e wildcard (*)
-local function delete_local_identity(git_root, short_id)
-  local id_pattern = vim.fn.shellescape(git_root .. '/.git/refs/identities/' .. short_id) .. '*'
-  -- Correção: apontamento restrito ao arquivo de identidades no cache
-  local cache_filepath = vim.fn.shellescape(git_root .. '/.git/git-bug/cache/identities')
-  local ok = os.execute('rm -rf ' .. id_pattern .. ' 2>/dev/null')
-  os.execute('rm -f ' .. cache_filepath .. ' 2>/dev/null')
-  os.execute('mkdir -p' .. git_root .. '.git/git-bug/cache/')
-  return ok == 0
-end
-
 local function ensure_repo_has_identity(git_root)
   local locals, _ = get_local_identities(git_root)
   if #locals > 0 then return true end
@@ -676,8 +665,9 @@ end
 
 -- ---------- BRIDGE (USANDO bridge auth) ----------
 local function has_github_bridge(git_root)
-  local output = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bridge auth 2>/dev/null')
-  -- Se a saída contiver "github", significa que já existe uma autenticação para GitHub
+  local cmd = 'cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bridge auth'
+  local output = vim.fn.system(cmd)
+  -- Se a saída contiver "github", a bridge existe
   return output:match 'github' ~= nil
 end
 
@@ -703,48 +693,29 @@ local function auto_configure_bridge(git_root)
     return false
   end
 
-  -- Monta o comando com os parâmetros conhecidos, mas sem --non-interactive para permitir escolha
+  -- Comando com redirecionamento de stderr
   local cmd = string.format(
-    'cd %s && git bug bridge new --name github --target github --owner %s --project %s --token %s',
+    'cd %s && git bug bridge new --name default --target github --owner %s --project %s --token %s --non-interactive 2>&1',
     vim.fn.shellescape(git_root),
     owner,
     project,
     token
   )
+  local output = vim.fn.system(cmd)
 
-  -- Abre um terminal split para que o usuário possa ver o log e fazer escolhas interativas
-  vim.cmd('split | terminal bash -c "' .. cmd .. "; echo; echo '--- PROCESSO CONCLUÍDO. PRESSIONE ENTER PARA SAIR ---'; read\"")
-  vim.cmd 'startinsert'
-
-  -- Nota: não podemos verificar o sucesso imediatamente porque o terminal é assíncrono.
-  -- Mas após o usuário finalizar, a bridge estará configurada.
-  return true
-end
--- ---------- EXECUTOR ----------
-local function gitbug_exec(cmd, git_root, interactive, wait_after, use_kitty)
-  if not ensure_repo_has_identity(git_root) then return end
-  clean_locks(git_root)
-
-  if cmd:match 'bridge pull' or cmd:match 'bridge push' then
-    if not auto_configure_bridge(git_root) then
-      vim.notify('Sincronização cancelada: autenticação GitHub não configurada.', vim.log.levels.WARN)
-      return
-    end
-  end
-
-  if use_kitty then
-    if not kitty_float_exec(cmd, git_root) then
-      vim.notify('Kitty remote indisponível, abrindo no terminal integrado...', vim.log.levels.WARN)
-      nvim_term_exec(cmd, git_root, interactive, wait_after)
-    end
+  if vim.v.shell_error == 0 then
+    vim.notify('Git Bug: Bridge GitHub configurada automaticamente!', vim.log.levels.INFO)
+    return true
   else
-    nvim_term_exec(cmd, git_root, interactive, wait_after)
+    vim.notify('Git Bug: Falha ao configurar bridge:\n' .. output, vim.log.levels.ERROR)
+    return false
   end
 end
 
 -- =============================================================================
 -- MENU DE IDENTIDADES (<leader>gu)
 -- =============================================================================
+
 vim.keymap.set('n', '<leader>gu', function()
   local cwd = get_working_dir()
   local git_root = get_git_root(cwd)
@@ -757,6 +728,7 @@ vim.keymap.set('n', '<leader>gu', function()
   local locals, active_short = get_local_identities(git_root)
   local items = {}
 
+  -- Cabeçalho: identidade ativa
   if active_short then
     local active_name = nil
     for _, ident in ipairs(locals) do
@@ -774,6 +746,7 @@ vim.keymap.set('n', '<leader>gu', function()
   end
   table.insert(items, { display = '---', action = 'separator' })
 
+  -- Lista de identidades locais
   table.insert(items, { display = '📂 IDENTIDADES LOCAIS', action = 'header' })
   for _, ident in ipairs(locals) do
     local marker = (active_short == ident.short_id) and '✓' or ' '
@@ -783,8 +756,9 @@ vim.keymap.set('n', '<leader>gu', function()
       action = 'use_local',
     })
   end
+
+  -- Opção de criar nova identidade
   table.insert(items, { display = '[+] Criar nova identidade local', action = 'create_local' })
-  if #locals > 0 then table.insert(items, { display = '[✕] Excluir uma identidade local...', action = 'delete_local_menu' }) end
 
   vim.ui.select(items, {
     prompt = 'Gerenciar identidades Git-Bug',
@@ -794,47 +768,9 @@ vim.keymap.set('n', '<leader>gu', function()
 
     if choice.action == 'create_local' then
       create_local_identity(git_root)
-    elseif choice.action == 'delete_local_menu' then
-      local del_items = {}
-      for _, ident in ipairs(locals) do
-        table.insert(del_items, {
-          display = string.format('%s (%s…)', ident.name, ident.short_id),
-          short_id = ident.short_id,
-        })
-      end
-      vim.ui.select(del_items, {
-        prompt = 'Escolha a identidade LOCAL para excluir:',
-        format_item = function(item) return item.display end,
-      }, function(del_choice)
-        if not del_choice then return end
-        vim.ui.select({ 'Sim', 'Não' }, {
-          prompt = string.format('Confirmar exclusão LOCAL de %s?', del_choice.display),
-        }, function(confirm)
-          if confirm == 'Sim' then
-            if delete_local_identity(git_root, del_choice.short_id) then
-              if active_short == del_choice.short_id then
-                local remaining = {}
-                for _, ident in ipairs(locals) do
-                  if ident.short_id ~= del_choice.short_id then table.insert(remaining, ident) end
-                end
-                if #remaining > 0 then
-                  adopt_identity_in_repo(git_root, remaining[1].short_id)
-                  vim.notify('Identidade local removida. Nova ativa: ' .. remaining[1].name, vim.log.levels.INFO)
-                else
-                  vim.notify('Identidade local removida. Nenhuma outra local disponível.', vim.log.levels.WARN)
-                end
-              else
-                vim.notify('Identidade local removida.', vim.log.levels.INFO)
-              end
-            else
-              vim.notify('Falha ao remover identidade local.', vim.log.levels.ERROR)
-            end
-          end
-        end)
-      end)
     elseif choice.action == 'use_local' then
       vim.ui.select({ 'Sim', 'Não' }, {
-        prompt = string.format 'Tornar esta a identidade ativa?',
+        prompt = 'Tornar esta a identidade ativa?',
       }, function(confirm)
         if confirm == 'Sim' then
           if adopt_identity_in_repo(git_root, choice.short_id) then
@@ -969,15 +905,32 @@ vim.keymap.set('n', '<leader>gp', function()
     return
   end
 
-  -- Validação amigável de perfil também para sincronização
   local locals, _ = get_local_identities(git_root)
   if #locals == 0 then
-    vim.notify('👋 Identidade necessária para sincronizar. Crie uma em "<leader>gu".', vim.log.levels.INFO)
+    vim.notify('👋 Identidade necessária. Crie uma com <leader>gu.', vim.log.levels.WARN)
     return
   end
 
-  -- Sincronização via terminal integrado
-  nvim_term_exec('git bug bridge pull && git bug bridge push', git_root, false, true)
+  if not has_github_bridge(git_root) then
+    vim.ui.select({ 'Sim', 'Não' }, {
+      prompt = 'Bridge GitHub não configurada. Configurar agora?',
+    }, function(choice)
+      if choice == 'Sim' then
+        if auto_configure_bridge(git_root) then vim.notify('Agora execute <leader>gp novamente.', vim.log.levels.INFO) end
+      end
+    end)
+    return
+  end
+
+  -- Comando com redirecionamento de stderr
+  local cmd = 'cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bridge pull default && git bug bridge push default 2>&1'
+  local output = vim.fn.system(cmd)
+
+  if vim.v.shell_error == 0 then
+    vim.notify('Sincronização concluída!\n' .. output, vim.log.levels.INFO)
+  else
+    vim.notify('Erro na sincronização:\n' .. output, vim.log.levels.ERROR)
+  end
 end, { desc = 'Git Bug: Push/Pull' })
 
 local function create_issue_floating()
@@ -1065,93 +1018,6 @@ local function create_issue_floating()
 end
 vim.keymap.set('n', '<leader>ga', create_issue_floating, { desc = 'Git Bug: Nova Issue (flutuante)' })
 
-vim.keymap.set('n', '<leader>gk', function()
-  local cwd = get_working_dir()
-  local git_root = get_git_root(cwd)
-  if not git_root then
-    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
-    return
-  end
-
-  local output = vim.fn.system('cd ' .. vim.fn.shellescape(git_root) .. ' && git bug bug ls --format id 2>/dev/null')
-  if vim.v.shell_error ~= 0 or output == '' then
-    vim.notify('Nenhuma issue encontrada.', vim.log.levels.WARN)
-    return
-  end
-
-  local ids = {}
-  for line in output:gmatch '[^\r\n]+' do
-    if line:match '^[%x]+$' then table.insert(ids, line) end
-  end
-
-  if #ids == 0 then
-    vim.notify('Nenhuma issue encontrada.', vim.log.levels.WARN)
-    return
-  end
-
-  vim.ui.select(ids, {
-    prompt = 'Escolha o ID da issue para excluir:',
-  }, function(id)
-    if not id then return end
-
-    vim.ui.select({ 'Apenas local', 'Local e remoto (push)', 'Cancelar' }, {
-      prompt = 'Como deseja excluir a issue ' .. id:sub(1, 8) .. '?',
-    }, function(mode)
-      if not mode or mode == 'Cancelar' then return end
-
-      local cmd_rm = string.format('git bug bug rm %s', id)
-      local full_cmd = string.format('cd %s && %s', vim.fn.shellescape(git_root), cmd_rm)
-
-      if mode == 'Apenas local' then
-        local ok = os.execute(full_cmd .. ' > /dev/null 2>&1')
-        if ok == 0 then
-          vim.notify('Issue excluída localmente.', vim.log.levels.INFO)
-        else
-          vim.notify('Erro ao excluir issue.', vim.log.levels.ERROR)
-        end
-      else
-        local push_cmd = string.format('cd %s && %s && git bug bridge push github', vim.fn.shellescape(git_root), cmd_rm)
-        vim.notify('Excluindo issue e sincronizando...', vim.log.levels.INFO)
-        vim.fn.jobstart(push_cmd, {
-          on_exit = function(_, code)
-            if code == 0 then
-              vim.schedule(function() vim.notify('Issue excluída e push realizado.', vim.log.levels.INFO) end)
-            else
-              vim.schedule(function() vim.notify('Erro durante exclusão/push.', vim.log.levels.ERROR) end)
-            end
-          end,
-        })
-      end
-    end)
-  end)
-end, { desc = 'Git Bug: Excluir issue' })
-
-vim.keymap.set('n', '<leader>gp', function()
-  local cwd = get_working_dir()
-  local git_root = get_git_root(cwd)
-  if not git_root then
-    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
-    return
-  end
-  gitbug_exec('git bug bridge pull github && git bug bridge push github', git_root, false, true, false)
-end, { desc = 'Git Bug: Push/Pull' })
-
-vim.keymap.set('n', '<leader>gf', function()
-  local cwd = get_working_dir()
-  local git_root = get_git_root(cwd)
-  if not git_root then
-    vim.notify('Fora de um repositório Git.', vim.log.levels.ERROR)
-    return
-  end
-  if not ensure_repo_has_identity(git_root) then return end
-  local msg = vim.fn.input 'Mensagem do Commit: '
-  if msg == '' then return end
-  local issue_id = vim.fn.input 'ID do Bug (ex: abc123): '
-  if issue_id == '' then return end
-  local cmd = string.format('git commit -m "%s (Fixes %s)"', msg, issue_id)
-  gitbug_exec(cmd, git_root, false, true, false)
-end, { desc = 'Git Bug: Commit Fix' })
-
 vim.keymap.set('n', '<leader>gz', function()
   local cwd = get_working_dir()
   local git_root = get_git_root(cwd)
@@ -1162,8 +1028,8 @@ vim.keymap.set('n', '<leader>gz', function()
   auto_configure_bridge(git_root)
 end, { desc = 'Git Bug: Configurar bridge (gh)' })
 
--- Limpar keyring do git-bug (corrige bridges corrompidas)
-vim.keymap.set('n', '<leader>gy', function()
+-- Gerenciar keyrings do git-bug (limpar todas ou selecionar específica)
+vim.keymap.set('n', '<leader>gk', function()
   local keyring_dir = vim.fn.expand '~/.config/git-bug/keyring'
 
   if vim.fn.isdirectory(keyring_dir) ~= 1 then
@@ -1171,17 +1037,57 @@ vim.keymap.set('n', '<leader>gy', function()
     return
   end
 
-  vim.ui.select({ 'Sim', 'Não' }, {
-    prompt = 'Apagar TODAS as chaves do keyring do git-bug? Isso pode resolver bridges corrompidas.',
+  -- Lista os arquivos/pastas dentro do keyring
+  local items = vim.fn.readdir(keyring_dir)
+
+  local menu_items = {
+    { display = '[✕] Apagar TODAS as keyrings', action = 'all' },
+    { display = '---', action = 'separator' },
+  }
+
+  -- Adiciona cada keyring encontrada ao menu
+  for _, name in ipairs(items) do
+    table.insert(menu_items, {
+      display = string.format('[✕] %s', name),
+      name = name,
+      action = 'single',
+    })
+  end
+
+  vim.ui.select(menu_items, {
+    prompt = 'Gerenciar keyrings do git-bug',
+    format_item = function(item) return item.display end,
   }, function(choice)
-    if choice == 'Sim' then
-      local ok = os.execute('rm -rf ' .. vim.fn.shellescape(keyring_dir) .. '/* 2>/dev/null')
-      if ok == 0 then
-        vim.notify('Keyring do git-bug limpo com sucesso!', vim.log.levels.INFO)
-        vim.notify('Execute <leader>gz para reconfigurar a bridge.', vim.log.levels.INFO)
-      else
-        vim.notify('Falha ao limpar o keyring.', vim.log.levels.ERROR)
-      end
+    if not choice then return end
+
+    if choice.action == 'all' then
+      vim.ui.select({ 'Sim', 'Não' }, {
+        prompt = 'Apagar TODAS as keyrings? Isso pode resolver bridges corrompidas.',
+      }, function(confirm)
+        if confirm == 'Sim' then
+          local ok = os.execute('rm -rf ' .. vim.fn.shellescape(keyring_dir) .. '/* 2>/dev/null')
+          if ok == 0 then
+            vim.notify('Todas as keyrings foram apagadas.', vim.log.levels.INFO)
+            vim.notify('Execute <leader>gz para reconfigurar a bridge.', vim.log.levels.INFO)
+          else
+            vim.notify('Falha ao apagar as keyrings.', vim.log.levels.ERROR)
+          end
+        end
+      end)
+    elseif choice.action == 'single' then
+      vim.ui.select({ 'Sim', 'Não' }, {
+        prompt = string.format('Apagar keyring "%s"?', choice.name),
+      }, function(confirm)
+        if confirm == 'Sim' then
+          local filepath = keyring_dir .. '/' .. choice.name
+          local ok = os.execute('rm -rf ' .. vim.fn.shellescape(filepath) .. ' 2>/dev/null')
+          if ok == 0 then
+            vim.notify('Keyring "' .. choice.name .. '" apagada.', vim.log.levels.INFO)
+          else
+            vim.notify('Falha ao apagar keyring.', vim.log.levels.ERROR)
+          end
+        end
+      end)
     end
   end)
-end, { desc = 'Git Bug: Limpar keyring (corrigir bridge)' })
+end, { desc = 'Git Bug: Gerenciar keyrings' })

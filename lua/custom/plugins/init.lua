@@ -78,14 +78,14 @@ return {
     opts = {
       workspaces = { { name = 'estudos', path = '~/Documents/brain' } },
       templates = {
-        subdir = 'content/99-brutos/templates',
+        subdir = '99-brutos/templates',
         date_format = '%Y-%m-%d',
         time_format = '%H-%M',
       },
       extensions = { '.md', '.qmd' },
       completion = { nvim_cmp = false, min_chars = 2 },
-      attachments = { folder = 'content/99-brutos' },
-      daily_notes = { folder = 'content/00-rápidas', date_format = '%Y-%m-%d' },
+      attachments = { folder = '99-brutos' },
+      daily_notes = { folder = '00-rápidas', date_format = '%Y-%m-%d' },
       legacy_commands = false,
       ui = { enable = false },
     },
