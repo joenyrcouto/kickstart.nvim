@@ -8,9 +8,10 @@
 
 ## 📖 Fluxos principais (resumo)
 
-### 🧠 Obsidian Vault
+### 🧠 Obsidian Vault (obsidian.nvim)
 - Vault em `~/Documents/brain`.
 - `<Enter>` segue links `[[...]]`. Templates em `content/99-brutos/Templates`.
+- Tem o plugin  `obsidian-bridge.nvim`. Configure o [edit-in-neovim](https://github.com/TheseusGrey/edit-in-neovim) no seu app do Obsidian.
 
 ### ⚡ Quarto Shadow System
 - `:Quarto -p` copia o buffer para `/tmp` e inicia preview **sem tocar no disco**.
@@ -112,7 +113,7 @@ Documents/
 ## 🔗 Principais referências
 
 - [Neovim](https://github.com/neovim) · [quarto-nvim](https://github.com/quarto-dev/quarto-nvim) · [otter.nvim](https://github.com/jmbuhr/otter.nvim)
-- [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim) · [git‑bug](https://github.com/MichaelMure/git-bug)
+- [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim) · [git‑bug](https://github.com/MichaelMure/git-bug) · [edit-in-neovim](https://github.com/TheseusGrey/edit-in-neovim) 
 
 ---
 
