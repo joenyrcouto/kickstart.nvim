@@ -1,4 +1,4 @@
--- required in which-key plugin spec in plugins/ui.lua as `require 'config.keymap'`
+-- required in which-key plugin spec in plugins/ui.lua as `require 'config.keymap'`key
 local wk = require 'which-key'
 local ms = vim.lsp.protocol.Methods
 local map = vim.keymap.set
@@ -555,6 +555,14 @@ wk.add {
     { '<leader>o', group = '[o]bsidian' },
     { '<leader>oa', '<cmd>ObsidianOpen<cr>', desc = 'Abrir no App (Obsidian)' },
     { '<leader>ob', '<cmd>ObsidianBacklinks<cr>', desc = 'Backlinks' },
+    {
+      '<leader>oo',
+      function()
+        vim.cmd 'RenderMarkdown toggle'
+        vim.cmd 'ObsidianToggleUI'
+      end,
+      desc = 'Modo de origem (Toggle UI)',
+    },
     { '<leader>od', '<cmd>ObsidianDailies<cr>', desc = 'Lista de Notas Diárias' },
     { '<leader>of', '<cmd>ObsidianQuickSwitch<cr>', desc = 'Quick Switch (Telescope/FZF)' },
     { '<leader>og', '<cmd>ObsidianTags<cr>', desc = 'Pesquisar Tags' },

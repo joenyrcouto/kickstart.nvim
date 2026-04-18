@@ -5,7 +5,6 @@ return {
     dependencies = {
       {
         'jmbuhr/otter.nvim',
-        'jpalardy/vim-slime',
         opts = {
           lsp = {
             hover = {
@@ -17,6 +16,10 @@ return {
           },
         },
       },
+      'jpalardy/vim-slime',
+      'nvim-treesitter/nvim-treesitter',
+      'jbyuki/nabla.nvim',
+      '3rd/image.nvim',
     },
     opts = {
       lspFeatures = {
@@ -114,7 +117,7 @@ return {
         if client.name == 'julials' then
           local ft = vim.bo[bufnr].filetype
           -- Se não for julia, desativa completamente o cliente neste buffer
-          if ft ~= 'julia' and 'quarto' then
+          if ft ~= 'julia' and ft ~= 'quarto' then
             client:stop()
             return
           end
@@ -460,10 +463,18 @@ return {
   -- nabla
   {
     'jbyuki/nabla.nvim',
-    keys = {
-      { '<leader>ee', '<cmd>lua require"nabla".toggle_virt()<cr>', desc = 'toggle equations' },
-      { '<leader>eh', '<cmd>lua require"nabla".popup()<cr>', desc = 'hover equation' },
+    dependencies = {
+      'nvim-neo-tree/neo-tree.nvim',
+      'williamboman/mason.nvim',
+      'nvim-treesitter/nvim-treesitter',
     },
+    lazy = true,
+    keys = function()
+      return {
+        -- Mapeamentos individuais
+        { '<leader>p', ':lua require("nabla").popup()<cr>', desc = 'NablaPopUp' },
+      }
+    end,
   },
 
   -- molten-nvim
@@ -481,14 +492,4 @@ return {
   --     { '<leader>mr', '<cmd>MoltenReevaluateCell<cr>', desc = 'molten re-eval cell' },
   --   },
   -- },
-
-  {
-    '3rd/image.nvim',
-    opts = {
-      backend = 'kitty', -- Ou "ueberzug", dependendo do seu terminal
-      max_width = 100,
-      max_height = 12,
-      display_coords = true,
-    },
-  },
 }

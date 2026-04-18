@@ -2,8 +2,8 @@
 
 local animals = require('misc.style').animals
 
-DefaultConcealLevel = 0
-FullConcealLevel = 3
+DefaultConcealLevel = 2
+FullConcealLevel = 2
 
 -- proper colors
 vim.opt.termguicolors = true
@@ -17,7 +17,7 @@ vim.opt.mouse = 'a' -- enable mouse
 vim.opt.mousefocus = true
 
 -- clipboard
-vim.o.clipboard = "unnamedplus"
+vim.o.clipboard = 'unnamedplus'
 
 vim.opt.timeoutlen = 400 -- until which-key pops up
 vim.opt.updatetime = 250 -- for autocommands and hovers
@@ -81,9 +81,7 @@ let g:currentmode={
 
 math.randomseed(os.time())
 local i = math.random(#animals)
-vim.opt.statusline = '%{%g:currentmode[mode()]%} %{%reg_recording()%} %* %t | %y | %* %= c:%c l:%l/%L %p%% %#NonText# '
-  .. animals[i]
-  .. ' %*'
+vim.opt.statusline = '%{%g:currentmode[mode()]%} %{%reg_recording()%} %* %t | %y | %* %= c:%c l:%l/%L %p%% %#NonText# ' .. animals[i] .. ' %*'
 
 -- hide cmdline when not used
 vim.opt.cmdheight = 1
@@ -134,9 +132,8 @@ vim.filetype.add {
     webr = 'r',
   },
   patter = {
-    ['/tmp/bash-fc*'] = 'bash'
-    
-  }
+    ['/tmp/bash-fc*'] = 'bash',
+  },
 }
 
 -- additional builtin vim packages
@@ -145,6 +142,5 @@ vim.cmd.packadd 'cfilter'
 
 -- use commands
 
-vim.api.nvim_create_user_command("CopyRelPath", "call setreg('+', expand('%'))", {})
-vim.api.nvim_create_user_command("CopyPath", "call setreg('+', expand('%:p'))", {})
-
+vim.api.nvim_create_user_command('CopyRelPath', "call setreg('+', expand('%'))", {})
+vim.api.nvim_create_user_command('CopyPath', "call setreg('+', expand('%:p'))", {})

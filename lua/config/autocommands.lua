@@ -20,3 +20,40 @@ vim.api.nvim_create_autocmd({ 'TermOpen' }, {
     set_terminal_keymaps()
   end,
 })
+
+-- Evita recursão infinita
+local is_flipping = false
+
+vim.api.nvim_create_autocmd({ 'BufWinEnter' }, {
+  pattern = '*.md',
+  callback = function()
+    if is_flipping then return end
+
+    -- Aguarda o Neovim desenhar a interface inicial (UI)
+    vim.defer_fn(function()
+      is_flipping = true
+
+      local current_buf = vim.api.nvim_get_current_buf()
+      local view = vim.fn.winsaveview() -- Salva posição do cursor e scroll
+
+      -- 1. Cria um buffer fantasma
+      local temp_buf = vim.api.nvim_create_buf(false, true)
+
+      -- 2. "Vai para outro arquivo" (o fantasma)
+      vim.api.nvim_win_set_buf(0, temp_buf)
+
+      -- 3. "Volta" para a nota original imediatamente
+      vim.defer_fn(function()
+        vim.api.nvim_win_set_buf(0, current_buf)
+        vim.fn.winrestview(view) -- Restaura posição exata
+
+        -- Limpa o lixo
+        vim.api.nvim_buf_delete(temp_buf, { force = true })
+        is_flipping = false
+
+        -- Força o redesenho final
+        vim.cmd 'redraw'
+      end, 50) -- Delay imperceptível de 50ms para a troca
+    end, 1400) -- Aguarda 200ms após abrir o arquivo para iniciar a manobra
+  end,
+})
