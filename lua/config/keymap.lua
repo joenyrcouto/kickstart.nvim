@@ -14,7 +14,7 @@ local imap = function(key, effect, desc) vim.keymap.set('i', key, effect, { sile
 local cmap = function(key, effect, desc) vim.keymap.set('c', key, effect, { silent = true, noremap = true, desc = desc }) end
 
 -- Apagar arquivo (dar um kill nele)
-map('n', '<C-S-K>', function()
+map('n', '<C-S-D>', function()
   local file = vim.fn.expand '%:p'
   vim.ui.select({ 'Sim', 'Não' }, {
     prompt = 'Excluir ' .. file .. '?',
@@ -296,31 +296,16 @@ end
 -- normal mode with <leader>
 wk.add({
   {
-    { '<leader><cr>', send_cell, desc = 'run code cell' },
-    { '<leader>c', group = '[c]ode / [c]ell / [c]hunk' },
-    { '<leader>cj', new_terminal_julia, desc = 'new [j]ulia terminal' },
-    { '<leader>cn', new_terminal_shell, desc = '[n]ew terminal with shell' },
-    { '<leader>cp', new_terminal_python, desc = 'new [p]ython terminal' },
-    { '<leader>cr', new_terminal_r, desc = 'new [R] terminal' },
+    { '<leader><rr>', send_cell, desc = 'run code cell' },
+    { '<leader>rj', new_terminal_julia, desc = 'new [j]ulia terminal' },
+    { '<leader>rn', new_terminal_shell, desc = '[n]ew terminal with shell' },
+    { '<leader>rp', new_terminal_python, desc = 'new [p]ython terminal' },
+    -- { '<leader>rr', new_terminal_r, desc = 'new [R] terminal' },
     { '<leader>d', group = '[d]ebug' },
     { '<leader>dt', group = '[t]est' },
+    { '<leader>c', group = '[c]ode companion' },
     { '<leader>e', group = '[e]dit' },
     { '<leader>e', group = '[t]mux' },
-    { '<leader>fd', [[eval "$(tmux showenv -s DISPLAY)"]], desc = '[d]isplay fix' },
-    { '<leader>f', group = '[f]ind (telescope)' },
-    { '<leader>f<space>', '<cmd>Telescope buffers<cr>', desc = '[ ] buffers' },
-    { '<leader>fM', '<cmd>Telescope man_pages<cr>', desc = '[M]an pages' },
-    { '<leader>fb', '<cmd>Telescope current_buffer_fuzzy_find<cr>', desc = '[b]uffer fuzzy find' },
-    { '<leader>fc', '<cmd>Telescope git_commits<cr>', desc = 'git [c]ommits' },
-    { '<leader>fd', '<cmd>Telescope buffers<cr>', desc = '[d] buffers' },
-    { '<leader>ff', '<cmd>Telescope find_files<cr>', desc = '[f]iles' },
-    { '<leader>fg', '<cmd>Telescope live_grep<cr>', desc = '[g]rep' },
-    { '<leader>fh', '<cmd>Telescope help_tags<cr>', desc = '[h]elp' },
-    { '<leader>fj', '<cmd>Telescope jumplist<cr>', desc = '[j]umplist' },
-    { '<leader>fk', '<cmd>Telescope keymaps<cr>', desc = '[k]eymaps' },
-    { '<leader>fl', '<cmd>Telescope loclist<cr>', desc = '[l]oclist' },
-    { '<leader>fm', '<cmd>Telescope marks<cr>', desc = '[m]arks' },
-    { '<leader>fq', '<cmd>Telescope quickfix<cr>', desc = '[q]uickfix' },
     { '<leader>g', group = '[g]it' },
     { '<leader>gb', group = '[b]lame' },
     { '<leader>gbb', ':GitBlameToggle<cr>', desc = '[b]lame toggle virtual text' },
@@ -345,26 +330,27 @@ wk.add({
     { '<leader>le', vim.diagnostic.open_float, desc = 'diagnostics (show hover [e]rror)' },
     { '<leader>lg', ':Neogen<cr>', desc = 'neo[g]en docstring' },
     { '<leader>ro', group = '[o]tter & c[o]de' },
-    { '<leader>roa', require('otter').activate, desc = 'otter [a]ctivate' },
+    { '<leader>roa', function() require('otter').activate() end, desc = 'otter [a]ctivate' },
     { '<leader>roc', 'O# %%<cr>', desc = 'magic [c]omment code chunk # %%' },
-    { '<leader>rod', require('otter').activate, desc = 'otter [d]eactivate' },
+    { '<leader>rod', function() require('otter').activate() end, desc = 'otter [d]eactivate' },
     { '<leader>roj', insert_julia_chunk, desc = '[j]ulia code chunk' },
     { '<leader>rol', insert_lua_chunk, desc = '[l]lua code chunk' },
     { '<leader>roo', insert_ojs_chunk, desc = '[o]bservable js code chunk' },
     { '<leader>rop', insert_py_chunk, desc = '[p]ython code chunk' },
     { '<leader>ror', insert_r_chunk, desc = '[r] code chunk' },
     { '<leader>rob', insert_bash_chunk, desc = '[b]ash code chunk' },
-    { '<leader>Ro', group = 'plain c[O]de' },
-    { '<leader>ROj', insert_plain_julia_chunk, desc = '[j]ulia code chunk' },
-    { '<leader>ROl', insert_plain_lua_chunk, desc = '[l]lua code chunk' },
-    { '<leader>ROo', insert_plain_ojs_chunk, desc = '[o]bservable js code chunk' },
-    { '<leader>ROp', insert_plain_py_chunk, desc = '[p]ython code chunk' },
-    { '<leader>ROr', insert_plain_r_chunk, desc = '[r] code chunk' },
-    { '<leader>ROb', insert_plain_bash_chunk, desc = '[b]ash code chunk' },
+    { '<leader>rO', group = 'plain c[O]de' },
+    { '<leader>rOj', insert_plain_julia_chunk, desc = '[j]ulia code chunk' },
+    { '<leader>rOl', insert_plain_lua_chunk, desc = '[l]lua code chunk' },
+    { '<leader>rOo', insert_plain_ojs_chunk, desc = '[o]bservable js code chunk' },
+    { '<leader>rOp', insert_plain_py_chunk, desc = '[p]ython code chunk' },
+    { '<leader>rOr', insert_plain_r_chunk, desc = '[r] code chunk' },
+    { '<leader>rOb', insert_plain_bash_chunk, desc = '[b]ash code chunk' },
     { '<leader>q', group = '[q]uarto' },
+    { '<leader>t', group = '[t]mp quarto' },
     { '<leader>qE', function() require('otter').export(true) end, desc = '[E]xport with overwrite' },
     { '<leader>qa', ':QuartoActivate<cr>', desc = '[a]ctivate' },
-    { '<leader>qe', require('otter').export, desc = '[e]xport' },
+    { '<leader>qe', function() require('otter').export() end, desc = '[e]xport' },
     { '<leader>qh', ':QuartoHelp ', desc = '[h]elp' },
     { '<leader>qp', ":lua require'quarto'.quartoPreview()<cr>", desc = '[p]review' },
     { '<leader>qu', ":lua require'quarto'.quartoUpdatePreview()<cr>", desc = '[u]pdate preview' },
@@ -373,7 +359,7 @@ wk.add({
     { '<leader>qra', ':QuartoSendAll<cr>', desc = 'run [a]ll' },
     { '<leader>qrb', ':QuartoSendBelow<cr>', desc = 'run [b]elow' },
     { '<leader>qrr', ':QuartoSendAbove<cr>', desc = 'to cu[r]sor' },
-    { '<leader>r', group = '[r] R specific tools' },
+    { '<leader>r', group = '[r]unner and tools' },
     { '<leader>rt', show_r_table, desc = 'show [t]able' },
     { '<leader>v', group = '[v]im' },
     { '<leader>vc', ':Telescope colorscheme<cr>', desc = '[c]olortheme' },
@@ -400,7 +386,7 @@ map('n', '<C-k>', '<C-w>k', { desc = 'Janela acima' })
 map('n', '<C-l>', '<C-w>l', { desc = 'Janela à direita' })
 
 -- Renomear arquivo
-map('n', '<leader>rn', function()
+map('n', '<C-S-R>', function()
   local old_name = vim.api.nvim_buf_get_name(0)
   if old_name == '' then return print 'Erro: Arquivo não salvo no disco' end
   local new_name = vim.fn.input('Novo nome do arquivo: ', old_name, 'file')

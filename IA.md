@@ -46,14 +46,6 @@ Ajuste a `url` e o `model` conforme seu ambiente.
 - [codecompanion.nvim](https://github.com/olimorris/codecompanion.nvim)
 - [LM Studio](https://lmstudio.ai/) (ou outro servidor compatível com OpenAI API)
 
-## 🌐 Modelos recomendados
-
-| Modelo                  | Tamanho | Uso sugerido                     |
-|-------------------------|---------|----------------------------------|
-| `google/gemma-2-2b-it`  | 2B      | Rápido, para autocompletar       |
-| `google/gemma-4-e2b`    | 4B      | Equilíbrio entre qualidade/velocidade |
-| `Meta-Llama-3-8B`       | 8B      | Tarefas complexas, explicações   |
-
 > 💡 O LM Studio gerencia o download e a execução dos modelos de forma simples.
 
 ---

@@ -1037,7 +1037,6 @@ local function setup_which_key()
       { '<leader>rA', runner.run_all, desc = 'run all cells (same lang)' },
       { '<leader>rl', runner.run_line, desc = 'run line' },
       { '<leader>r', runner.run_range, mode = 'v', desc = 'run visual range' },
-      { '<leader>RA', function() runner.run_all(true) end, desc = 'run all cells (all langs)' },
     }
   end
 end

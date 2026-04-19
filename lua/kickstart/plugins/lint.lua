@@ -8,13 +8,7 @@ return {
   config = function()
     local lint = require 'lint'
     lint.linters_by_ft = {
-      -- markdown = { 'markdownlint' }, -- Make sure to install `markdownlint` via mason / npm
-
-      -- Para arquivos Python puros
-      python = { 'pylint' }, -- Ou 'flake8'
-
-      -- Para arquivos Typst puros
-      typst = { 'tidy' },
+      markdown = { 'markdownlint' }, -- Make sure to install `markdownlint` via mason / npm
     }
 
     -- To allow other plugins to add linters to require('lint').linters_by_ft,

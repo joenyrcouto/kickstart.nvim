@@ -1,9 +1,0 @@
-{
-  "plugins": {
-    "obsidian.nvim": {
-      "rev": "dec6573816767eaa9596cabc1593f45a2f7821ee",
-      "src": "https://github.com/obsidian-nvim/obsidian.nvim",
-      "version": ">=0.0.0"
-    }
-  }
-}

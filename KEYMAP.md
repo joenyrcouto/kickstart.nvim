@@ -16,8 +16,8 @@ Este documento lista todos os atalhos configurados no `config.keymap.lua` e nos 
 | Atalho        | Ação                                                    |
 |---------------|---------------------------------------------------------|
 | `<C-s>`       | Salvar arquivo (`:update`)                              |
-| `<C-S-K>`     | Excluir arquivo atual (com confirmação)                 |
-| `<leader>rn`  | Renomear arquivo físico no disco                        |
+| `<C-S-D>`     | Excluir arquivo atual (com confirmação)                 |
+| `<C-S-R>`  | Renomear arquivo físico no disco                        |
 | `<leader>e`   | Abrir explorador de arquivos (Neo-tree)                 |
 | `u`           | Desfazer última alteração                               |
 | `<C-r>`       | Refazer alteração desfeita                              |
@@ -34,17 +34,13 @@ Este documento lista todos os atalhos configurados no `config.keymap.lua` e nos 
 | `>` / `<`     | Visual       | Indentar / remover indentação (mantém seleção)|
 | `<leader>d/p` | Visual       | Deletar/substituir sem sobrescrever registro  |
 
-## 🔍 Telescope (`<leader>f`)
+## 🔍 Telescope (`<leader>s`)
 
 | Atalho | Ação                       |
 |--------|----------------------------|
-| `ff`   | Localizar arquivos         |
-| `fg`   | Live grep                  |
-| `fb`   | Busca difusa no buffer     |
-| `fh`   | Tags de ajuda              |
-| `fk`   | Lista de keymaps           |
-| `fd`   | Lista de buffers           |
-| `fM`   | Páginas de manual          |
+| `sf`   | Localizar arquivos         |
+| `sg`   | Live grep                  |
+| `ss`   | Seleciona telescope alheios|
 | `<C-v>`  | Seleciona para a horizontal|
 | `<C-h>`  | Seleciona para a vertical  |
 | `<C-t>`  | Seleciona para uma tab     |
@@ -75,7 +71,6 @@ Este documento lista todos os atalhos configurados no `config.keymap.lua` e nos 
 | `rA`   | Executar todas as células (mesma linguagem)   |
 | `rl`   | Executar linha atual                          |
 | `r`    | Executar seleção visual (modo visual)         |
-| `RA`   | Executar todas as células (todas linguagens)  |
 
 ## 🐙 Git (`<leader>g`)
 

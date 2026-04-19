@@ -6,11 +6,7 @@ return {
       {
         'jmbuhr/otter.nvim',
         opts = {
-          lsp = {
-            hover = {
-              border = require('misc.style').border,
-            },
-          },
+          lsp = {},
           buffers = {
             set_filetype = true,
           },
@@ -143,19 +139,7 @@ return {
         vim.bo[bufnr].omnifunc = 'v:lua.vim.lsp.omnifunc'
         local opts = { noremap = true, silent = true, buffer = bufnr }
 
-        vim.keymap.set('n', 'gS', '<cmd>Telescope lsp_document_symbols<CR>', opts)
-        vim.keymap.set('n', 'gD', '<cmd>Telescope lsp_type_definitions<CR>', opts)
-        vim.keymap.set('n', 'gd', '<cmd>Telescope lsp_definitions<CR>', opts)
-        vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-        vim.keymap.set('n', 'gh', vim.lsp.buf.signature_help, opts)
-        vim.keymap.set('n', 'gi', '<cmd>Telescope lsp_implementations<CR>', opts)
-        vim.keymap.set('n', 'gr', '<cmd>Telescope lsp_references<CR>', opts)
-        vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, opts)
-        vim.keymap.set('n', ']d', vim.diagnostic.goto_next, opts)
-        vim.keymap.set('n', '<leader>lR', vim.lsp.buf.rename, opts)
-        vim.keymap.set('n', '<leader>lf', function() vim.lsp.buf.format { async = true } end, opts)
-
-        -- Highlight de referências (opcional)
+             -- Highlight de referências (opcional)
         if client and client:supports_method('textDocument/documentHighlight', bufnr) then
           local group = vim.api.nvim_create_augroup('lsp-highlight-' .. bufnr, { clear = false })
           vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
@@ -360,11 +344,6 @@ return {
         view = {
           entries = 'native',
         },
-        window = {
-          documentation = {
-            border = require('misc.style').border,
-          },
-        },
       }
     end,
   },
@@ -438,26 +417,11 @@ return {
       -- Registro de atalhos com which-key (formato moderno)
       local wk = require 'which-key'
       wk.add {
-        { '<leader>cm', mark_terminal, desc = 'mark terminal' },
-        { '<leader>cs', set_terminal, desc = 'set terminal' },
-        { '<leader>ct', toggle_slime_tmux_nvim, desc = 'toggle tmux/nvim terminal' },
+        { '<leader>rm', mark_terminal, desc = 'mark terminal' },
+        { '<leader>rs', set_terminal, desc = 'set terminal' },
+        { '<leader>rz', toggle_slime_tmux_nvim, desc = 'toggle tmux/nvim terminal' },
       }
     end,
-  },
-
-  -- clipboard-image
-  {
-    'dfendr/clipboard-image.nvim',
-    keys = {
-      { '<leader>ip', '<cmd>PasteImg<cr>', desc = 'image paste' },
-    },
-    cmd = { 'PasteImg' },
-    opts = {
-      quarto = {
-        img_dir = 'img',
-        affix = '![](%s)',
-      },
-    },
   },
 
   -- nabla

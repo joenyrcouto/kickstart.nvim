@@ -1,4 +1,4 @@
-# 🚀 Neovim Acadêmico: Quarto + Obsidian + Zettelkasten (Beta em teste)
+# 🚀 Neovim Acadêmico: Quarto + Obsidian (dotfile empoderado!)
 
 *Configuração pessoal do Neovim otimizada para pesquisa, estudo e escrita técnica. Integra **Obsidian** (gestão de notas), **Quarto** (publicação científica) e **Inteligência Artificial local**, com previews acelerados por **Shadow Sync em RAM** (`/tmp`).*
 
@@ -10,7 +10,7 @@
 
 ### 🧠 Obsidian Vault ([obsidian.nvim](https://github.com/joenyrcouto/obsidian.nvim))
 - Vault em `~/Documents/brain`.
-- `<Enter>` segue links `[[...]]`. Templates em `content/99-brutos/Templates`.
+- `<Enter>` segue links `[[...]]`. Templates em `99-brutos/Templates`.
 - Tem o plugin  `obsidian-bridge.nvim`. Configure o [edit-in-neovim](https://github.com/TheseusGrey/edit-in-neovim) no seu app do Obsidian.
 
 ### ⚡ Quarto Shadow System
@@ -21,7 +21,7 @@
 
 ### 🐙 Github CLI + Lazygit + Gitsins + Git‑bug
 - Integração e automatização de ferramentas, com criação, edição e consulta de issues **totalmente offline**, com sincronização posterior.
-- Atalhos dedicados na tecla `<leader>g`, veja mais em [`GITBUG.md`](./GITHUB.md).
+- Atalhos dedicados na tecla `<leader>g`, veja mais em [`GITBUG.md`](./GIT.md).
 
 ### 🤖 IA Local (CodeCompanion + LM Studio)
 - Modelos como Gemma ou Llama rodando localmente via LM Studio.
@@ -35,8 +35,8 @@
 | Atalho        | Ação                                                    |
 |---------------|---------------------------------------------------------|
 | `<C-s>`       | Salvar arquivo (`:update`)                              |
-| `<C-S-K>`     | Excluir arquivo atual (com confirmação)                 |
-| `<leader>rn`  | Renomear arquivo físico no disco                        |
+| `<C-S-D>`     | Excluir arquivo atual (com confirmação)                 |
+| `<C-S-R>`  | Renomear arquivo físico no disco                        |
 | `<leader>e`   | Abrir explorador de arquivos (Neo-tree)                 |
 | `u`           | Desfazer última alteração                               |
 | `<C-r>`       | Refazer alteração desfeita                              |
@@ -78,12 +78,12 @@
 | `ga` | v | Adicionar seleção ao chat |
 
 ### Outros grupos importantes 
-- **Runner de células** (`<leader>r`) → `rc`, `ra`, `rA`, `rl`, `r`, `RA`
-- **Telescope** (`<leader>f`) → `ff`, `fg`, `fb`, `fh`, `fk`, etc.
+- **Runner de células** (`<leader>r`) → `rc`, `ra`, `rA`, `rl`, `r`
+- **Telescope** (`<leader>f`) → `ff`, `fg`, `fb`, `fh`, `fk`, etc
 - **LSP / Diagnóstico** (`<leader>l`) → `ldd`, `lde`, `le`, `lg`
 - **Git** (`<leader>g`) → `gg` (LazyGit), `gs` (Gitsigns), `gl` (Git-bug termui)
 
-> 📘 Lista completa de atalhos em [`KEYMAPS.md`](./KEYMAPS.md).
+> 📘 Lista completa de atalhos em [`KEYMAP.md`](./KEYMAP.md).
 
 ---
 
