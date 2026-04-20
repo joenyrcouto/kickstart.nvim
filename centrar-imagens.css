@@ -1,0 +1,5 @@
+div.internal-embed.is-loaded.media-embed.image-embed[src$=".excalidraw"] {
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}

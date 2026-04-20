@@ -1,0 +1,65 @@
+/* 1. Oculta o contêiner do cabeçalho e elementos irmãos exclusivamente na aba do terminal */
+.workspace-tabs:has(.workspace-leaf-content[data-type="terminal:terminal"]) .workspace-tab-header-container,
+.workspace-tabs:has(.workspace-leaf-content[data-type="terminal:terminal"]) .workspace-tab-header-new-tab,
+.workspace-tabs:has(.workspace-leaf-content[data-type="terminal:terminal"]) .workspace-tab-header-spacer,
+.workspace-tabs:has(.workspace-leaf-content[data-type="terminal:terminal"]) .workspace-tab-header-tab-list {
+    display: none !important;
+}
+
+/* Oculta elementos irmãos (botão de nova aba e espaçadores) para suprimir a barra superior por completo */
+.workspace-tab-header-new-tab,
+.workspace-tab-header-spacer,
+.workspace-tab-header-tab-list {
+    display: none !important;
+}
+
+/* 2. Zera o preenchimento da área de conteúdo do terminal */
+.workspace-leaf-content[data-type="terminal:terminal"] .view-content {
+    padding: 0 !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    margin: 0 !important;
+    display: flex !important; /* Facilita a expansão do nó filho */
+}
+
+/* 3. Remove a barra de rolagem vertical como entidade do layout */
+.workspace-leaf-content[data-type="terminal:terminal"] .scrollbar.vertical {
+    display: none !important;
+}
+
+/* 4. Expande os contêineres internos do terminal para preenchimento total do espaço */
+.workspace-leaf-content[data-type="terminal:terminal"] .terminal\:terminal,
+.workspace-leaf-content[data-type="terminal:terminal"] .terminal.xterm {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Opcional: Remove o cabeçalho interno da janela (título "Terminal: Open bridge-nvim") para eliminar qualquer espaço residual superior */
+.workspace-leaf-content[data-type="terminal:terminal"] .view-header {
+    display: none !important;
+}
+
+/* Garante a expansão do contêiner e suprime a barra de rolagem nativa do xterm */
+.workspace-leaf-content[data-type="terminal:terminal"] .xterm-scrollable-element,
+.workspace-leaf-content[data-type="terminal:terminal"] .xterm-viewport {
+    overflow: hidden !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Camufla o espaço residual adotando a cor de fundo nativa do terminal e centraliza a matriz */
+.workspace-leaf-content[data-type="terminal:terminal"] .xterm-screen {
+    margin: 0 auto !important;
+    background-color: var(--background-primary) !important;
+}
+
+/* Alternativa restrita apenas ao contêiner que possui o terminal */
+.workspace-tabs:has(.workspace-leaf-content[data-type="terminal:terminal"]):not(.mod-active) {
+    flex-grow: 3.8 !important;
+    transition: flex-grow 0.25s ease;
+}
+
+.workspace-tabs.mod-active:has(.workspace-leaf-content[data-type="terminal:terminal"]) {
+    flex-grow: 30 !important;
+    transition: flex-grow 0.25s ease;
+}
