@@ -2,8 +2,7 @@
 
 Esta configuração permite que o Neovim e o Obsidian funcionem como uma única ferramenta. O Neovim atua como o motor de navegação e edição avançada, enquanto o Obsidian cuida da interface gráfica e renderização.
 
-Demo:
-
+https://github.com/user-attachments/assets/2c91e83f-e74b-44c7-96d7-2ac39bcf7ace
 
 ## 📂 Onde colocar cada arquivo
 
@@ -14,7 +13,7 @@ Para que a integração funcione, os arquivos/pasta deste repositório devem ser
 | `start-nvim-obsidian.sh` | Qualquer | Script que limpa a porta 2006 e inicia o servidor Neovim. |
 | `init.lua` (Pseudo-Config) | `~/.config/nvim-obsidian/` | Perfil isolado que ativa a ponte e herda sua config Master. |
 | `*.css` | `[Vault]/.obsidian/snippets/` | Snippets CSS para a interface responsiva (gaveta). |
-| `edit-in-neovim-modificado` | `[Vault]/.obsidian/plugins/` | | `*.css` | `[Vault]/.obsidian/snippets/` | Snippets CSS para a interface responsiva (gaveta). | Plugin que sicroniza o buffer do obsidian para o neovim. |
+| `edit-in-neovim-modificado` | `[Vault]/.obsidian/plugins/` | Plugin que sicroniza o buffer do obsidian para o neovim. |
 
 ---
 
