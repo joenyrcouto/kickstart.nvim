@@ -127,7 +127,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
 
 ---
 
-## ⚠️ Notas Importantes para Linux (foi feito para uso nele, adapte ao seu sistemam se necessário)
+## ⚠️ Notas Importantes para Linux (foi feito para uso nele, adapte ao seu sistema, se necessário)
 - **Permissões:** Certifique-se de que o script de inicialização é executável:
   ```bash
   chmod +x ~/start-nvim-obsidian.sh
