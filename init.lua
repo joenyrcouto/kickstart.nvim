@@ -1,6 +1,6 @@
 -- 1. Marca que viemos do Obsidian
 vim.g.launched_from_obsidian = true
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- 2. Define caminhos base
 local home = os.getenv("HOME")

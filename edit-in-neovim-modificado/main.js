@@ -33248,19 +33248,15 @@ var Neovim = class {
     if (!file) return;
     if (!this.nvimBinary) return;
 
-    // 1. Verificação de tipos suportados
     const isExcalidrawMd = file.extension === "md" && file.path.endsWith(".excalidraw.md");
     let isSupported = this.settings.supportedFileTypes.includes(file.extension);
     isSupported = isSupported || (isExcalidrawMd && this.settings.supportedFileTypes.includes("excalidraw"));
     if (!isSupported) return;
 
-    // 2. Verificação de porta/servidor ativo
     const port = this.settings.listenOn.split(":").at(-1);
     try {
       if (!(port && await host.isPortInUse(port))) {
-        console.debug(
-          "Port is either missing, or nothing was listening on it, skipping command"
-        );
+        console.debug("Port is either missing, or nothing was listening on it, skipping command");
         return;
       }
     } catch (error) {
@@ -33268,25 +33264,24 @@ var Neovim = class {
     }
 
     const absolutePath = this.adapter.getFullPath(file.path);
+    // Normalização para evitar problemas de escape no Windows/Lua
+    const normalizedPath = absolutePath.replace(/\\/g, "/");
 
-    // --- INÍCIO DA OTIMIZAÇÃO ANTI-LOOP ---
-    // Se houver uma conexão RPC ativa (this.instance), avisamos o Neovim 
-    // qual arquivo estamos abrindo ANTES de enviar o comando --remote.
-    if (this.instance) {
-      try {
-        // Define a variável global no Neovim que o seu init.lua irá checar
-        await this.instance.setVar("obsidian_last_sync_path", absolutePath);
-        console.debug("Edit-in-Neovim: Trava de sincronia definida para: " + file.name);
-      } catch (e) {
-        console.warn("Falha ao enviar variável de trava via RPC, seguindo sem trava.");
-      }
-    }
-    // --- FIM DA OTIMIZAÇÃO ---
+    /**
+     * CONSTRUÇÃO DO COMANDO REMOTO:
+     * 1. <C-\><C-N>: Garante que o Neovim saia de qualquer modo (Insert/Visual) para o Normal.
+     * 2. :let g:obsidian_lock = "...": Define a trava que seu init.lua irá ler.
+     * 3. :edit! ...: Abre o arquivo forçando a atualização do buffer.
+     */
+    const remoteCommand = `<C-\\><C-N>:let g:obsidian_lock = "${normalizedPath}"<CR>:edit! ${normalizedPath.replace(/ /g, "\\ ")}<CR>`;
 
-    // 3. Envio do comando para o Neovim
-    const args = ["--server", this.settings.listenOn, "--remote", absolutePath];
-    console.debug(`Opening ${absolutePath} in neovim`);
-    
+    const args = [
+      "--server", this.settings.listenOn,
+      "--remote-send", remoteCommand
+    ];
+
+    console.debug(`Sincronizando Obsidian -> Neovim: ${normalizedPath}`);
+
     try {
       child_process2.execFile(
         (_a = this.nvimBinary) == null ? void 0 : _a.path,
@@ -33299,23 +33294,21 @@ var Neovim = class {
               noticeMessage = `Neovim executable not found at: ${(_a2 = this.nvimBinary) == null ? void 0 : _a2.path}`;
             } else if (stderr && (stderr.includes("ECONNREFUSED") || stderr.includes("Connection refused"))) {
               noticeMessage = `Could not connect to Neovim server at ${this.settings.listenOn}. Is it running?`;
-            } else if (stderr && stderr.includes("No such file or directory") && stderr.includes(absolutePath)) {
-              noticeMessage = `Neovim server reported error finding file: ${file.basename}`;
             } else if (stderr) {
-              noticeMessage = `Error opening file in Neovim: ${stderr.split("\n")[0]}`;
+              noticeMessage = `Error opening file: ${stderr.split("\n")[0]}`;
             }
             notify(noticeMessage, 1e4);
             return;
           }
-          if (stdout) console.log(`Neovim --remote stdout: ${stdout}`);
-          if (stderr) console.warn(`Neovim --remote stderr: ${stderr}`);
+          if (stdout) console.log(`Neovim stdout: ${stdout}`);
+          if (stderr) console.warn(`Neovim stderr: ${stderr}`);
         }
       );
     } catch (execFileError) {
       console.error("Error opening file in neovim", execFileError);
       notify(`Failed to run Neovim command: ${execFileError.message}`, 1e4);
     }
-  }
+}
   close() {
     var _a;
     (_a = this.instance) == null ? void 0 : _a.quit();
@@ -33561,6 +33554,8 @@ var EditInNeovim = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
     const adapter = this.app.vault.adapter;
+
+    // Definição do Host baseada na plataforma
     switch (import_process.platform) {
       case "darwin":
         this.host = new MacOS(adapter, this.settings, {
@@ -33578,33 +33573,62 @@ var EditInNeovim = class extends import_obsidian3.Plugin {
         });
         break;
     }
+
     const checksOk = this.pluginChecks(adapter);
+    
+    // Inicialização da instância Neovim
     this.neovim = new Neovim(this.settings, adapter, {
       searchPaths: Array.from(this.host.getSearchPaths())
     });
-    if (checksOk && this.settings.openNeovimOnLoad)
+
+    // Abre a instância do Neovim se configurado para carregar no startup
+    if (checksOk && this.settings.openNeovimOnLoad) {
       this.host.newInstance(this.neovim, adapter);
+    }
+
+    // =========================================================================
+    // GATILHO DE SINCRONIZAÇÃO INICIAL (Sessão Anterior)
+    // =========================================================================
+    this.app.workspace.onLayoutReady(() => {
+      // Aguarda 2.6 segundos para o servidor RPC do Neovim estar online
+      setTimeout(async () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && checksOk) {
+          console.debug(`Sincronia de inicialização: Enviando ${activeFile.path}`);
+          // Utiliza o openFile já modificado com a trava g:obsidian_lock
+          await this.neovim.openFile(activeFile, this.host);
+        }
+      }, 2600); 
+    });
+    // =========================================================================
+
+    // Registo de Eventos de Mudança de Ficheiro
     this.registerEvent(
       this.app.workspace.on(
         "file-open",
-        (f) => this.neovim.openFile(f, this.host)
+        (f) => {
+            // Pequeno delay para evitar conflitos de leitura/escrita rápida
+            if (f) this.neovim.openFile(f, this.host);
+        }
       )
     );
+
     this.registerEvent(this.app.workspace.on("quit", () => this.onunload()));
+    
     this.addSettingTab(new EditInNeovimSettingsTab(this.app, this));
+
+    // Comandos do Plugin
     this.addCommand({
       id: "edit-in-neovim-new-instance",
       name: "Open Neovim",
       callback: async () => await this.host.newInstance(this.neovim, adapter).then(
         () => setTimeout(
-          () => this.neovim.openFile(
-            this.app.workspace.getActiveFile(),
-            this.host
-          ),
-          1e3
+          () => this.neovim.openFile(this.app.workspace.getActiveFile(), this.host),
+          1000
         )
       )
     });
+
     this.addCommand({
       id: "edit-in-neovim-close-instance",
       name: "Close Neovim",
@@ -33615,6 +33639,7 @@ var EditInNeovim = class extends import_obsidian3.Plugin {
         }
       }
     });
+
     this.addCommand({
       id: "edit-in-neovim-open-file",
       name: "Open File",

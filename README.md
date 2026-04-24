@@ -52,76 +52,58 @@ Insira, este bloco abaixo, na configuração real do seu init: ([aqui](https://g
 
 ```
 -- =============================================================================
--- PONTE OBSIDIAN (Sincronização Global Otimizada)
+-- PONTE OBSIDIAN - PROTEÇÃO DE ESTADO (ANTI-LOOP)
 -- =============================================================================
 
--- Variável local para evitar disparos repetidos do mesmo arquivo dentro do Neovim
-local last_sent_path = ""
-
--- Ativa a ponte se detectado o selo da pseudo-config
-if vim.g.launched_from_obsidian then
-    vim.g.obsidian_bridge_active = true
-else
-    vim.g.obsidian_bridge_active = false
-end
+local last_sync_path = "" -- Variável de controle para evitar duplicidade
 
 local function sync_to_obsidian()
-    -- 1. Verificação de Ativação
-    if not vim.g.obsidian_bridge_active then return end
+    if not vim.g.launched_from_obsidian then return end
     
+    local filepath = vim.fn.expand("%:p"):gsub("\\", "/"):lower()
     local bufnr = vim.api.nvim_get_current_buf()
-    local filepath = vim.fn.expand("%:p")
-    local buftype = vim.bo[bufnr].buftype
-    local filetype = vim.bo[bufnr].filetype
-
-    -- 2. Filtros de Segurança (Ignora Telescope, janelas técnicas e buffers vazios)
-    if buftype ~= "" or filetype == "TelescopePrompt" or filepath == "" then 
-        return
-    end
     
-    -- 3. Filtro de Extensões
-    if not (filepath:find("%.md$") or filepath:find("%.qmd$") or filepath:find("%.base$")) then
-        return
+    -- 1. Filtros de segurança
+    if vim.bo[bufnr].buftype ~= "" or filepath == "" then return end
+    if not (filepath:find("%.md$") or filepath:find("%.qmd$") or filepath:find("%.base$")) then return end
+
+    -- 2. Verifica a trava vinda do Obsidian (impede o loop de volta)
+    local lock_path = (vim.g.obsidian_lock or ""):gsub("\\", "/"):lower()
+    if lock_path ~= "" and filepath == lock_path then
+        vim.g.obsidian_lock = "" 
+        last_sync_path = filepath -- Registra que o Obsidian já sabe deste arquivo
+        return 
     end
 
-    -- 4. LÓGICA ANTI-LOOP E ANTI-DUPLICAÇÃO
-    -- 'obsidian_last_sync_path' é a variável que o Obsidian injeta via RPC ao abrir um arquivo
-    local last_obsidian_path = vim.g.obsidian_last_sync_path or ""
+    -- 3. Evita enviar a notificação se o arquivo for o mesmo que acabamos de sincronizar
+    if filepath == last_sync_path then return end
+
+    -- 4. Execução (Ação manual do usuário no Neovim)
+    last_sync_path = filepath
+    local raw_path = vim.fn.expand("%:p")
+    local encoded_path = raw_path:gsub(" ", "%%20")
     
-    -- Se o arquivo atual for o mesmo que o Obsidian acabou de nos mandar,
-    -- ou se for o mesmo que já enviamos na última vez, ignoramos para evitar o loop.
-    if filepath == last_obsidian_path or filepath == last_sent_path then
-        return
-    end
-
-    -- Atualiza o cache local
-    last_sent_path = filepath
-
-    -- 5. Sincronização via URI
-    local encoded_path = filepath:gsub(" ", "%%20")
+    -- Adicionamos o parâmetro silent=true (se o plugin do Obsidian suportar) 
+    -- ou simplesmente limpamos o log.
     local uri = "obsidian://open?path=" .. encoded_path
 
     if vim.fn.has("unix") == 1 then
-        vim.fn.jobstart({"xdg-open", uri})
+        vim.fn.jobstart({"xdg-open", uri}, { detach = true })
+    elseif vim.fn.has("win32") == 1 then
+        vim.fn.jobstart({"cmd.exe", "/c", "start", uri}, { detach = true })
     end
-
-    -- 6. Limpa a trava do Obsidian após o envio para permitir futuras trocas manuais
-    vim.g.obsidian_last_sync_path = ""
 end
 
--- Autocmd Único com delay de 250ms
--- O delay é vital para o Telescope não disparar comandos enquanto você apenas navega na lista
 local obsidian_sync_group = vim.api.nvim_create_augroup("ObsidianSync", { clear = true })
 vim.api.nvim_create_autocmd("BufEnter", {
     group = obsidian_sync_group,
     pattern = { "*.md", "*.qmd", "*.base" },
     callback = function()
-        vim.defer_fn(sync_to_obsidian, 250) 
+        -- schedule garante que variáveis globais enviadas por RPC já foram processadas
+        vim.schedule(sync_to_obsidian)
     end
 })
 
--- =============================================================================
--- FIM DA INTEGRAÇÃO OBSIDIAN
 -- =============================================================================
 ```
 
