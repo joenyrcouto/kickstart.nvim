@@ -535,6 +535,19 @@ end, { desc = 'Terminal flutuante (hide/show, exit to destroy)' })
 -- [ CONFIGURAÇÕES ESPECÍFICAS DO OBSIDIAN ]
 -------------------------------------------------------------------
 
+vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+  pattern = '*',
+  callback = function(args)
+    local ext = vim.fn.fnamemodify(args.file, ':e')
+    if ext ~= 'md' then
+      vim.schedule(function()
+        vim.cmd('silent! RenderMarkdown disable')
+        vim.cmd('silent! ObsidianToggleUI')
+      end)
+    end
+  end,
+})
+
 -- Substitua os mapeamentos avulsos do Obsidian pela estrutura nativa do which-key:
 wk.add {
   -- Mapeamentos Globais (Modo Normal)
