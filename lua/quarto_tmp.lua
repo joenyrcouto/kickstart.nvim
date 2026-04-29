@@ -641,13 +641,17 @@ local function quarto_handler(args)
             if item_idx > 0 and item_idx <= #items then
               local name = items[item_idx]
               local action = vim.fn.confirm('Usar template?', '&Usar\n&Copiar\nCancelar')
-              if action == 1 then
-                local content = fn.readfile(tdir .. '/' .. name)
-                api.nvim_buf_set_lines(bufnr, 0, -1, false, content)
-                vim.notify('Buffer substituído.', vim.log.levels.INFO)
-                ensure_buffer_id(bufnr, true)
-                buffer_config_cache[bufnr] = nil
-                vim.cmd 'q'
+             if action == 1 then
+            local content = fn.readfile(tdir .. '/' .. name)
+            api.nvim_buf_set_lines(bufnr, 0, -1, false, content)
+            vim.notify('Buffer substituído.', vim.log.levels.INFO)
+            -- Reanalisa o YAML do template e preserva as configurações
+            buffer_config_cache[bufnr] = nil
+            local new_config = get_buffer_config(bufnr)
+            -- Gera um novo ID, mas mantém tudo o que veio do template
+            new_config.quarto_id = fn.sha256(api.nvim_buf_get_name(bufnr) .. os.time()):sub(1, 8)
+            save_buffer_config(bufnr)
+            vim.cmd 'q'
               elseif action == 2 then
                 fn.setreg('+', table.concat(fn.readfile(tdir .. '/' .. name), '\n'))
                 vim.notify('Copiado.', vim.log.levels.INFO)
@@ -964,13 +968,15 @@ local function quarto_handler(args)
           local name = items[item_idx]
           local action = vim.fn.confirm('Usar template?', '&Usar\n&Copiar\nCancelar')
           if action == 1 then
-            local content = fn.readfile(tdir .. '/' .. name)
-            api.nvim_buf_set_lines(bufnr, 0, -1, false, content)
-            vim.notify('Buffer substituído.', vim.log.levels.INFO)
-            -- força criação de quarto_id se necessário (ex: .qmd)
-            ensure_buffer_id(bufnr, true)
-            buffer_config_cache[bufnr] = nil
-            vim.cmd 'q'
+             local content = fn.readfile(tdir .. '/' .. name)
+             api.nvim_buf_set_lines(bufnr, 0, -1, false, content)
+             vim.notify('Buffer substituído.', vim.log.levels.INFO)
+             -- Reanalisa o YAML do template e preserva as configurações
+             buffer_config_cache[bufnr] = nil
+             local new_config = get_buffer_config(bufnr)
+             new_config.quarto_id = fn.sha256(api.nvim_buf_get_name(bufnr) .. os.time()):sub(1, 8)
+             save_buffer_config(bufnr)
+             vim.cmd 'q'
           elseif action == 2 then
             fn.setreg('+', table.concat(fn.readfile(tdir .. '/' .. name), '\n'))
             vim.notify('Copiado.', vim.log.levels.INFO)
