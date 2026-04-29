@@ -227,7 +227,6 @@ local function prompt_shadow_setup(bufnr, reason)
   else
     local config = get_buffer_config(bufnr)
     config.quarto_usar_local_fisico = true
-    config.quarto_ignorar_ativos = true
     return false
   end
 end
@@ -276,11 +275,6 @@ local function open_log_view(path)
     vim.notify('Log não encontrado: ' .. path, vim.log.levels.WARN)
   end
 end
-
--- =========================================================================
---  Abertura de arquivos com aplicativo padrão do sistema
--- =========================================================================
-local function open_with_default_app(file_path) fn.jobstart({ 'xdg-open', file_path }, { detach = true }) end
 
 -- =========================================================================
 --  Shadow Sync
@@ -431,7 +425,95 @@ local preview_state = {
   bufnr = nil,
   config = nil,
   browser_opened = false,
+  browser_pid = nil,
+  browser_temp_profile = nil,
+  browser_window_title = nil,
 }
+
+local geometry_file = vim.fn.stdpath('state') .. '/quarto_preview_geometry.txt'
+
+local function save_window_geometry()
+  local title_hint = preview_state.browser_window_title
+  if not title_hint then return end
+  local wid = vim.fn.system("xdotool search --onlyvisible --name '" .. title_hint .. "' 2>/dev/null | head -1"):gsub('%s+', '')
+  if wid ~= '' then
+    local geom = vim.fn.system("xdotool getwindowgeometry --shell " .. wid .. " 2>/dev/null")
+    local x = geom:match("X=(%-?%d+)")
+    local y = geom:match("Y=(%-?%d+)")
+    local w = geom:match("WIDTH=(%d+)")
+    local h = geom:match("HEIGHT=(%d+)")
+    if x and y and w and h then
+      vim.fn.writefile({ table.concat({ x, y, w, h }, ',') }, geometry_file)
+    end
+  end
+end
+
+local function load_window_geometry()
+  if vim.fn.filereadable(geometry_file) == 1 then
+    local content = vim.fn.readfile(geometry_file)
+    if #content > 0 then
+      local parts = {}
+      for n in content[1]:gmatch('[^,]+') do table.insert(parts, n) end
+      if #parts == 4 then
+        return {
+          x = tonumber(parts[1]),
+          y = tonumber(parts[2]),
+          width = tonumber(parts[3]),
+          height = tonumber(parts[4]),
+        }
+      end
+    end
+  end
+  return nil
+end
+
+local function apply_window_geometry()
+  local geom = load_window_geometry()
+  local title_hint = preview_state.browser_window_title
+  if geom and title_hint then
+    vim.defer_fn(function()
+      local wid = vim.fn.system("xdotool search --onlyvisible --name '" .. title_hint .. "' 2>/dev/null | head -1"):gsub('%s+', '')
+      if wid ~= '' then
+        os.execute("xdotool windowmove --sync " .. wid .. " " .. geom.x .. " " .. geom.y .. " 2>/dev/null")
+        os.execute("xdotool windowsize --sync " .. wid .. " " .. geom.width .. " " .. geom.height .. " 2>/dev/null")
+      end
+    end, 1000)
+  end
+end
+
+local function open_browser_with_temp_profile(url, title_hint)
+  local script = os.tmpname() .. '.sh'
+  local f = io.open(script, 'w')
+  if not f then return end
+  f:write([[
+#!/bin/bash
+BROWSER_DESKTOP=$(xdg-settings get default-web-browser)
+BROWSER_EXEC=$(grep -Po '(?<=^Exec=).*?(?=(\s|$))' "/usr/share/applications/$BROWSER_DESKTOP" 2>/dev/null | head -1 | sed 's/%.//')
+TEMP_PROFILE=$(mktemp -d)
+$BROWSER_EXEC --user-data-dir="$TEMP_PROFILE" --no-first-run --no-default-browser-check --ozone-platform=x11 "]] .. url .. [[" &
+PID=$!
+echo "PID=$PID"
+echo "TEMP_PROFILE=$TEMP_PROFILE"
+]])
+  f:close()
+  local output = vim.fn.system({ 'bash', script })
+  os.remove(script)
+  local pid, profile
+  for line in output:gmatch '[^\r\n]+' do
+    local p = line:match '^PID=(%d+)$'
+    if p then pid = tonumber(p) end
+    local pf = line:match '^TEMP_PROFILE=(.+)$'
+    if pf then profile = pf end
+  end
+  if pid and profile then
+    preview_state.browser_pid = pid
+    preview_state.browser_temp_profile = profile
+    preview_state.browser_window_title = title_hint
+    vim.notify('Navegador iniciado. PID=' .. pid, vim.log.levels.INFO)
+  else
+    vim.notify('Falha ao capturar PID ou perfil', vim.log.levels.ERROR)
+  end
+end
 
 -- Copia conteúdo do diretório de origem para destino, sobrescrevendo sem apagar
 local function copy_dir_contents(src, dest)
@@ -440,14 +522,26 @@ local function copy_dir_contents(src, dest)
 end
 
 local function stop_preview()
+  -- Salva a geometria da janela antes de fechar
+  save_window_geometry()
+  -- Mata o navegador do preview anterior
+  if preview_state.browser_pid then
+    fn.system("kill " .. preview_state.browser_pid .. " 2>/dev/null")
+    fn.system("kill -9 " .. preview_state.browser_pid .. " 2>/dev/null")
+    preview_state.browser_pid = nil
+  end
+  -- Remove o perfil temporário
+  if preview_state.browser_temp_profile then
+    fn.system("rm -rf " .. preview_state.browser_temp_profile .. " 2>/dev/null")
+    preview_state.browser_temp_profile = nil
+  end
   -- Mata o job interno (bash)
   if preview_state.job then
     pcall(vim.fn.jobstop, preview_state.job)
     preview_state.job = nil
   end
-  -- Mata qualquer processo usando a porta 4445
+  -- Libera a porta 4445
   fn.system("fuser -k 4445/tcp >/dev/null 2>&1")
-  -- Opção 2: fn.system("lsof -ti :4445 | xargs kill -9 2>/dev/null")
   -- Limpa estado
   preview_state.mode = nil
   preview_state.browser_opened = false
@@ -455,6 +549,8 @@ end
 
 local function start_preview(shadow_info, file_path, fmt, config)
   stop_preview()
+
+  vim.wait(500, function() return false end)  -- Aguarda 500ms para a porta liberar
 
   local cmd_parts = {
     'quarto',
@@ -495,7 +591,9 @@ local function start_preview(shadow_info, file_path, fmt, config)
       preview_state.url = url
       preview_state.browser_opened = true
       vim.schedule(function()
-        open_with_default_app(url)
+        local title_hint = fn.fnamemodify(file_path, ':t:r')
+        open_browser_with_temp_profile(url, title_hint)
+        apply_window_geometry()
         -- Se push_comp ativo e não local, copia para subpasta nome_id
         if config.quarto_push_comp and not config.quarto_usar_local_fisico then
           local fname_no_ext = fn.fnamemodify(file_path, ':t:r')
@@ -810,13 +908,15 @@ local function quarto_handler(args)
             -- Abrir o arquivo a partir da cópia
             local copied_file = comp_subdir .. filename_no_ext .. '.' .. out_ext
             if fn.filereadable(copied_file) == 1 then
-              open_with_default_app(copied_file)
+              local title_hint = filename_no_ext
+              open_browser_with_temp_profile(copied_file, title_hint)
             end
           else
             -- Modo local: abrir diretamente do diretório original
             local expected_file = compile_dir .. '/' .. filename_no_ext .. '.' .. out_ext
             if fn.filereadable(expected_file) == 1 then
-              open_with_default_app(expected_file)
+              local title_hint = filename_no_ext
+              open_browser_with_temp_profile(expected_file, title_hint)
             end
           end
         else
@@ -1146,6 +1246,9 @@ local function quarto_handler(args)
       config[key] = not config[key]
       update_lines()
       save_buffer_config(bufnr)
+      if key == 'quarto_modo_escrita' and preview_state.mode == 'compile' and preview_state.bufnr == bufnr then
+        refresh_preview()
+      end
     end
 
     vim.keymap.set('n', '1', toggle_quarto_usar_local_fisico, { buffer = buf })
@@ -1236,9 +1339,21 @@ api.nvim_create_autocmd('BufWritePost', {
   callback = function(ev)
     if not is_supported_extension(ev.buf) then return end
     update_shadow_from_buffer(ev.buf)
+    if preview_state.mode == 'compile' and preview_state.bufnr == ev.buf then
+      refresh_preview()
+    end
   end,
 })
 
-api.nvim_create_autocmd('VimLeavePre', { group = quarto_group, callback = stop_preview })
+api.nvim_create_autocmd('VimLeavePre', {
+  group = quarto_group,
+  callback = function()
+    stop_preview()
+    -- Garante limpeza de perfil residual
+    if preview_state.browser_temp_profile then
+      fn.system("rm -rf " .. preview_state.browser_temp_profile .. " 2>/dev/null")
+    end
+  end,
+})
 
 vim.schedule(setup_which_key)
